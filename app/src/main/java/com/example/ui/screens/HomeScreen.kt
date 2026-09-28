@@ -110,7 +110,8 @@ fun HomeScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToWishlist: () -> Unit,
     onNavigateToLocationPicker: () -> Unit = {},
-    onNavigateToLogin: (() -> Unit)? = null
+    onNavigateToLogin: (() -> Unit)? = null,
+    onNavigateToOnboarding: (() -> Unit)? = null
 ) {
     val currency by viewModel.selectedCurrency.collectAsState()
     val products by viewModel.filteredProducts.collectAsState()
@@ -980,7 +981,8 @@ fun HomeScreen(
                     showProfileModal = false
                     viewModel.logoutCustomer()
                     Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
-                }
+                },
+                onViewOnboarding = onNavigateToOnboarding
             )
         }
     }
