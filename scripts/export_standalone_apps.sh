@@ -79,7 +79,7 @@ export_app() {
 
     # 3. Create standalone build.gradle.kts without multi-flavors
     cat << 'EOF' > "${OUT_DIR}/app/build.gradle.kts"
-import com.google.gms.googServices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
   alias(libs.plugins.android.application)
