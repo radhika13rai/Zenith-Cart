@@ -1,0 +1,78 @@
+name: Build OmniCart Android APKs
+
+on:
+  push:
+    branches:
+      - main
+      - app-shopper
+      - app-partner
+      - app-rider
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Package APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Prepare Secrets & Debug Keystore
+        run: |
+          # Ensure .env exists from template if not provided
+          if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+            cp .env.example .env
+          fi
+
+          # Decode debug keystore if base64 file exists
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
+          chmod +x gradlew
+
+      - name: Build All 3 Ecosystem APKs (Main Branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ./gradlew :app:assembleShopperDebug :app:assemblePartnerDebug :app:assembleRiderDebug :app:assembleUnifiedDebug --stacktrace
+          mkdir -p artifacts
+          cp app/build/outputs/apk/shopper/debug/*-debug.apk artifacts/OmniCart_Shopper.apk 2>/dev/null || cp app/build/outputs/apk/shopper/debug/*.apk artifacts/OmniCart_Shopper.apk
+          cp app/build/outputs/apk/partner/debug/*-debug.apk artifacts/OmniCart_Partner.apk 2>/dev/null || cp app/build/outputs/apk/partner/debug/*.apk artifacts/OmniCart_Partner.apk
+          cp app/build/outputs/apk/rider/debug/*-debug.apk artifacts/OmniCart_Rider.apk 2>/dev/null || cp app/build/outputs/apk/rider/debug/*.apk artifacts/OmniCart_Rider.apk
+          cp app/build/outputs/apk/unified/debug/*-debug.apk artifacts/OmniCart_Unified.apk 2>/dev/null || cp app/build/outputs/apk/unified/debug/*.apk artifacts/OmniCart_Unified.apk
+
+      - name: Build Standalone APK (Dedicated Branch)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace
+          mkdir -p artifacts
+          BRANCH_NAME="${GITHUB_REF_NAME:-standalone}"
+          cp app/build/outputs/apk/debug/*-debug.apk "artifacts/OmniCart_${BRANCH_NAME}.apk" 2>/dev/null || cp app/build/outputs/apk/debug/*.apk "artifacts/OmniCart_${BRANCH_NAME}.apk"
+
+      - name: Verify Generated APKs
+        run: |
+          echo "=================================================="
+          echo "📦 Compiled APK Artifacts:"
+          ls -lh artifacts/
+          echo "=================================================="
+
+      - name: Upload APKs to GitHub Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnicart-apks-${{ github.ref_name }}
+          path: artifacts/*.apk
+          retention-days: 30
