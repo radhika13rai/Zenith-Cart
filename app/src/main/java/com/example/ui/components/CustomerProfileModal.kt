@@ -58,7 +58,8 @@ fun CustomerProfileModal(
     userProfile: UserProfile,
     onDismiss: () -> Unit,
     onRegisterNewAccount: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onViewOnboarding: (() -> Unit)? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -222,6 +223,23 @@ fun CustomerProfileModal(
                 Spacer(modifier = Modifier.height(18.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(14.dp))
+
+                if (onViewOnboarding != null) {
+                    OutlinedButton(
+                        onClick = {
+                            onDismiss()
+                            onViewOnboarding.invoke()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralPrimary)
+                    ) {
+                        Icon(Icons.Filled.Stars, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Replay 10-Min Onboarding Tour", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 // Action Buttons
                 Row(

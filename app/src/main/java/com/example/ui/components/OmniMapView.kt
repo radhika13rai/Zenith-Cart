@@ -120,12 +120,14 @@ fun OmniUniversalMapView(
     interactive: Boolean = true,
     showControls: Boolean = true,
     showExternalMapButton: Boolean = true,
+    initialDisplayMode: OmniMapDisplayMode = OmniMapDisplayMode.LIVE_STREETS,
     onLocationSelected: ((Double, Double) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var displayMode by remember { mutableStateOf(OmniMapDisplayMode.VECTOR_RADAR) }
+    var displayMode by remember { mutableStateOf(initialDisplayMode) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var isLoadingTiles by remember { mutableStateOf(true) }
+    var lastRenderedMode by remember { mutableStateOf(displayMode) }
 
     // Google Maps SDK camera state
     val cameraPositionState = rememberCameraPositionState {
@@ -145,7 +147,16 @@ fun OmniUniversalMapView(
         }
     }
 
-    val mapHtml = remember(latitude, longitude, podLat, podLng, riderLat, riderLng, displayMode) {
+    LaunchedEffect(riderLat, riderLng) {
+        if (riderLat != null && riderLng != null) {
+            webViewRef?.let { wv ->
+                val riderJs = "if (window.updateRider) { window.updateRider($riderLat, $riderLng); }"
+                wv.evaluateJavascript(riderJs, null)
+            }
+        }
+    }
+
+    val mapHtml = remember(displayMode) {
         generateLeafletHtml(
             lat = latitude,
             lng = longitude,
@@ -159,6 +170,15 @@ fun OmniUniversalMapView(
             riderName = riderName ?: "Delivery Rider",
             isInteractive = interactive
         )
+    }
+
+    LaunchedEffect(displayMode) {
+        if (displayMode == OmniMapDisplayMode.LIVE_STREETS || displayMode == OmniMapDisplayMode.SATELLITE) {
+            if (lastRenderedMode != displayMode) {
+                lastRenderedMode = displayMode
+                webViewRef?.loadDataWithBaseURL("https://omnicart.local", mapHtml, "text/html", "UTF-8", null)
+            }
+        }
     }
 
     Box(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
@@ -235,12 +255,10 @@ fun OmniUniversalMapView(
             }
 
             OmniMapDisplayMode.LIVE_STREETS, OmniMapDisplayMode.SATELLITE -> {
-                // Leaflet / OpenStreetMap / Esri Satellite with LAYER_TYPE_SOFTWARE to eliminate MESA rendernode errors
+                // Interactive Leaflet CartoDB / OSM / Esri Satellite
                 AndroidView(
                     factory = { ctx ->
                         WebView(ctx).apply {
-                            // Software layer prevents Chromium from attempting GPU / Mesa rendernode access
-                            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.cacheMode = WebSettings.LOAD_DEFAULT
@@ -248,12 +266,15 @@ fun OmniUniversalMapView(
                             settings.useWideViewPort = true
                             settings.setSupportZoom(true)
                             settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
+                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36 OmniCart/1.0"
                             setBackgroundColor(android.graphics.Color.parseColor("#EBF0F5"))
 
                             webChromeClient = WebChromeClient()
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     isLoadingTiles = false
+                                    view?.evaluateJavascript("if (window.map) { window.map.invalidateSize(); }", null)
                                 }
                             }
 
@@ -269,7 +290,12 @@ fun OmniUniversalMapView(
                     },
                     update = { wv ->
                         webViewRef = wv
-                        wv.loadDataWithBaseURL("https://omnicart.local", mapHtml, "text/html", "UTF-8", null)
+                        val js = "if (window.updateCenter) { window.updateCenter($latitude, $longitude, $zoom); }"
+                        wv.evaluateJavascript(js, null)
+                        if (riderLat != null && riderLng != null) {
+                            val riderJs = "if (window.updateRider) { window.updateRider($riderLat, $riderLng); }"
+                            wv.evaluateJavascript(riderJs, null)
+                        }
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -286,7 +312,7 @@ fun OmniUniversalMapView(
                     .padding(8.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                // Map Mode Selector Tabs: [ ⚡ Radar | 🗺️ Streets | 🛰️ Satellite ]
+                // Map Mode Selector Tabs: [ 🗺️ Streets | 🛰️ Satellite | ⚡ Radar ]
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -297,12 +323,6 @@ fun OmniUniversalMapView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         MapModeButton(
-                            title = "⚡ Radar",
-                            selected = displayMode == OmniMapDisplayMode.VECTOR_RADAR,
-                            onClick = { displayMode = OmniMapDisplayMode.VECTOR_RADAR }
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        MapModeButton(
                             title = "🗺️ Streets",
                             selected = displayMode == OmniMapDisplayMode.LIVE_STREETS,
                             onClick = { displayMode = OmniMapDisplayMode.LIVE_STREETS }
@@ -312,6 +332,12 @@ fun OmniUniversalMapView(
                             title = "🛰️ Satellite",
                             selected = displayMode == OmniMapDisplayMode.SATELLITE,
                             onClick = { displayMode = OmniMapDisplayMode.SATELLITE }
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        MapModeButton(
+                            title = "⚡ Radar",
+                            selected = displayMode == OmniMapDisplayMode.VECTOR_RADAR,
+                            onClick = { displayMode = OmniMapDisplayMode.VECTOR_RADAR }
                         )
                     }
                 }
@@ -682,10 +708,11 @@ private fun generateLeafletHtml(
     val tileLayerUrl = if (isSatellite) {
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     } else {
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
     }
 
-    val attribution = if (isSatellite) "© Esri World Imagery" else "© OpenStreetMap contributors"
+    val subdomains = if (isSatellite) "[]" else "['a', 'b', 'c', 'd']"
+    val attribution = if (isSatellite) "© Esri World Imagery" else "© CartoDB, © OpenStreetMap"
 
     return """
         <!DOCTYPE html>
@@ -693,8 +720,8 @@ private fun generateLeafletHtml(
         <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
             <style>
                 html, body, #map {
                     width: 100%;
@@ -703,6 +730,7 @@ private fun generateLeafletHtml(
                     padding: 0;
                     background: #E8ECEF;
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    overflow: hidden;
                 }
                 .leaflet-control-attribution {
                     font-size: 8px !important;
@@ -728,6 +756,18 @@ private fun generateLeafletHtml(
                     font-weight: bold;
                     border: 2px solid white;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    white-space: nowrap;
+                }
+                .cust-pin {
+                    background: #FF5252;
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 10px;
+                    font-size: 11px;
+                    font-weight: bold;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    white-space: nowrap;
                 }
             </style>
         </head>
@@ -738,13 +778,36 @@ private fun generateLeafletHtml(
                     center: [$lat, $lng],
                     zoom: $zoom,
                     zoomControl: false,
-                    attributionControl: true
+                    attributionControl: false
                 });
 
-                L.tileLayer('$tileLayerUrl', {
+                var tileLayer = L.tileLayer('$tileLayerUrl', {
                     maxZoom: 19,
+                    subdomains: $subdomains,
                     attribution: '$attribution'
                 }).addTo(map);
+
+                tileLayer.on('tileerror', function(error, tile) {
+                    if (tile && tile.src && !tile.src.includes('tile.openstreetmap.org')) {
+                        var coords = error.coords;
+                        tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
+                    }
+                });
+
+                var customerMarker = null;
+                var hubMarker = null;
+                var riderMarker = null;
+                var routeLine = null;
+
+                ${if (!isInteractive) """
+                var customerIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div class='cust-pin'>📍 Delivery</div>",
+                    iconSize: [85, 24],
+                    iconAnchor: [42, 12]
+                });
+                customerMarker = L.marker([$lat, $lng], { icon: customerIcon }).addTo(map);
+                """ else ""}
 
                 ${if (podLat != null && podLng != null) """
                 var podIcon = L.divIcon({
@@ -753,13 +816,13 @@ private fun generateLeafletHtml(
                     iconSize: [120, 24],
                     iconAnchor: [60, 12]
                 });
-                L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
+                hubMarker = L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
 
                 var latlngs = [
                     [$podLat, $podLng],
                     [$lat, $lng]
                 ];
-                L.polyline(latlngs, {
+                routeLine = L.polyline(latlngs, {
                     color: '#FF5252',
                     weight: 4,
                     dashArray: '6, 6',
@@ -774,7 +837,7 @@ private fun generateLeafletHtml(
                     iconSize: [100, 24],
                     iconAnchor: [50, 12]
                 });
-                L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
+                riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
                 """ else ""}
 
                 ${if (isInteractive) """
@@ -784,11 +847,34 @@ private fun generateLeafletHtml(
                         window.AndroidBridge.onPinMoved(center.lat, center.lng);
                     }
                 });
+                map.on('click', function(e) {
+                    map.panTo(e.latlng);
+                    if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                        window.AndroidBridge.onPinMoved(e.latlng.lat, e.latlng.lng);
+                    }
+                });
                 """ else ""}
 
                 window.updateCenter = function(nlat, nlng, nzoom) {
-                    map.setView([nlat, nlng], nzoom || 16);
+                    if (map) {
+                        map.setView([nlat, nlng], nzoom || map.getZoom());
+                        if (customerMarker) {
+                            customerMarker.setLatLng([nlat, nlng]);
+                        }
+                        if (routeLine && hubMarker) {
+                            routeLine.setLatLngs([hubMarker.getLatLng(), [nlat, nlng]]);
+                        }
+                    }
                 };
+
+                window.updateRider = function(rlat, rlng) {
+                    if (riderMarker) {
+                        riderMarker.setLatLng([rlat, rlng]);
+                    }
+                };
+
+                setTimeout(function() { if (map) map.invalidateSize(); }, 250);
+                setTimeout(function() { if (map) map.invalidateSize(); }, 800);
             </script>
         </body>
         </html>

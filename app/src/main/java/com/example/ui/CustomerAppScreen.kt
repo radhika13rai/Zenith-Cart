@@ -47,6 +47,7 @@ import com.example.ui.screens.OrdersScreen
 import com.example.ui.screens.ProductDetailScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SupportScreen
+import com.example.ui.screens.CustomerOnboardingScreen
 import com.example.ui.screens.WishlistScreen
 import com.example.ui.theme.CoralPrimary
 import com.example.ui.viewmodel.EcommerceViewModel
@@ -61,7 +62,10 @@ fun CustomerAppScreen(
     viewModel: EcommerceViewModel,
     modifier: Modifier = Modifier
 ) {
-    var currentCustomerScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val hasCompletedOnboarding by viewModel.hasCompletedOnboarding.collectAsState()
+    var currentCustomerScreen by remember {
+        mutableStateOf<Screen>(if (hasCompletedOnboarding) Screen.Home else Screen.Onboarding)
+    }
     val customerScreenStack = remember { mutableStateListOf<Screen>() }
 
     fun navigateToCustomer(screen: Screen) {
@@ -185,6 +189,24 @@ fun CustomerAppScreen(
 
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                     when (val screen = currentCustomerScreen) {
+                        is Screen.Onboarding -> {
+                            CustomerOnboardingScreen(
+                                viewModel = viewModel,
+                                onGetStarted = {
+                                    viewModel.completeOnboarding()
+                                    customerScreenStack.clear()
+                                    currentCustomerScreen = Screen.Home
+                                },
+                                onNavigateToLocation = {
+                                    viewModel.completeOnboarding()
+                                    navigateToCustomer(Screen.LocationPicker)
+                                },
+                                onNavigateToLogin = {
+                                    viewModel.completeOnboarding()
+                                    navigateToCustomer(Screen.LoginOtp)
+                                }
+                            )
+                        }
                         is Screen.Home -> {
                             HomeScreen(
                                 viewModel = viewModel,
@@ -194,7 +216,8 @@ fun CustomerAppScreen(
                                 onNavigateToSearch = { navigateToCustomer(Screen.Search) },
                                 onNavigateToWishlist = { navigateToCustomer(Screen.Wishlist) },
                                 onNavigateToLocationPicker = { navigateToCustomer(Screen.LocationPicker) },
-                                onNavigateToLogin = { navigateToCustomer(Screen.LoginOtp) }
+                                onNavigateToLogin = { navigateToCustomer(Screen.LoginOtp) },
+                                onNavigateToOnboarding = { navigateToCustomer(Screen.Onboarding) }
                             )
                         }
                         is Screen.Orders -> {
