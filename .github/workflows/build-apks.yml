@@ -43,6 +43,15 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
           fi
 
+          # Ensure gradlew and wrapper jar exist
+          if [ ! -f "gradlew" ]; then
+            curl -sLo gradlew https://raw.githubusercontent.com/gradle/gradle/master/gradlew
+          fi
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            mkdir -p gradle/wrapper
+            curl -sLo gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar
+          fi
+
           chmod +x gradlew
 
       - name: Build All 3 Ecosystem APKs (Main Branch)
