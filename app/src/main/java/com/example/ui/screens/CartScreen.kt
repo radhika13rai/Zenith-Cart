@@ -92,9 +92,12 @@ fun CartScreen(
     var abandonedCartTriggered by remember { mutableStateOf(false) }
 
     val discountAmount = subtotal * (promoDiscountPercent / 100.0)
-    val freeShippingThreshold = 50.0
-    val deliveryFee = if (subtotal >= freeShippingThreshold || subtotal == 0.0) 0.0 else 4.99
-    val finalTotal = (subtotal - discountAmount + deliveryFee).coerceAtLeast(0.0)
+    val discountedSubtotal = (subtotal - discountAmount).coerceAtLeast(0.0)
+    val packagingFee = if (cartItems.isNotEmpty()) 0.18 else 0.0
+    val taxGstAmount = discountedSubtotal * 0.05
+    val freeShippingThreshold = 25.0
+    val deliveryFee = if (discountedSubtotal >= freeShippingThreshold || cartItems.isEmpty()) 0.0 else 1.50
+    val finalTotal = if (cartItems.isEmpty()) 0.0 else (discountedSubtotal + packagingFee + taxGstAmount + deliveryFee).coerceAtLeast(0.0)
 
     Box(
         modifier = Modifier
@@ -705,12 +708,40 @@ fun CartScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("3PL Carrier Delivery", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("10-Min Flash Delivery", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(
                                         if (deliveryFee == 0.0) "FREE" else currency.format(deliveryFee),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (deliveryFee == 0.0) GreenSuccess else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Eco Packaging & Bagging", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        currency.format(packagingFee),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Taxes & GST (5%)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        currency.format(taxGstAmount),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
@@ -725,7 +756,7 @@ fun CartScreen(
                                 ) {
                                     Column {
                                         Text("Total Amount", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                        Text("Inclusive of all taxes", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("Itemized with GST & packaging", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Text(
                                         currency.format(finalTotal),

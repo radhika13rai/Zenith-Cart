@@ -22,6 +22,30 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  flavorDimensions += "appType"
+  productFlavors {
+    create("shopper") {
+      dimension = "appType"
+      applicationId = "com.omnicart.shopper"
+      versionNameSuffix = "-shopper"
+    }
+    create("partner") {
+      dimension = "appType"
+      applicationId = "com.omnicart.partner"
+      versionNameSuffix = "-partner"
+    }
+    create("rider") {
+      dimension = "appType"
+      applicationId = "com.omnicart.rider"
+      versionNameSuffix = "-rider"
+    }
+    create("unified") {
+      dimension = "appType"
+      applicationId = "com.aistudio.omnicart.xkpw"
+      versionNameSuffix = "-unified"
+    }
+  }
+
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"

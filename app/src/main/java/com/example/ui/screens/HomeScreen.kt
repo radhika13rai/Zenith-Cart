@@ -131,7 +131,7 @@ fun HomeScreen(
     var showProfileModal by remember { mutableStateOf(false) }
     var showCurrencyModal by remember { mutableStateOf(false) }
 
-    val categories = listOf("All", "Electronics", "Fashion", "Health & Gourmet", "Beauty", "Home & Living")
+    val categories = listOf("All", "Produce", "Dairy", "Snacks", "Pantry", "Household", "Electronics", "Fashion")
     val totalCartUnits = cartItems.sumOf { it.quantity }
     val cartSubtotal = cartItems.sumOf { it.product.priceUsd * it.quantity }
 

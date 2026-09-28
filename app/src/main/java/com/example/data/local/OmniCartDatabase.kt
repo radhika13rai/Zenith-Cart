@@ -20,7 +20,7 @@ import com.example.model.WishlistItemEntity
         SupportTicketEntity::class,
         NotificationEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class OmniCartDatabase : RoomDatabase() {

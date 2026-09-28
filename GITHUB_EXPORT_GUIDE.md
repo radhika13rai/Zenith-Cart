@@ -1,76 +1,78 @@
-# OmniCart: 3 Separate Apps GitHub Deployment Guide
+# OmniCart: 3 Standalone Apps Architecture & Deployment Guide
 
-This guide details how to publish and deploy the **3 separate OmniCart apps** to GitHub and Google Play Store:
+OmniCart is a quick-commerce ecosystem featuring **3 dedicated, independently deployable applications**:
 
-| App Name | Target Audience | Standalone Launcher Activity | Default Application ID |
-| :--- | :--- | :--- | :--- |
-| **1. OmniCart Shopper** | Customers / Buyers | `com.example.CustomerAppActivity` | `com.aistudio.omnicart.shopper` |
-| **2. OmniCart Partner** | Darkstore Merchants & Vendors | `com.example.PartnerAppActivity` | `com.aistudio.omnicart.partner` |
-| **3. OmniCart Rider** | Delivery Fleet & Riders | `com.example.RiderAppActivity` | `com.aistudio.omnicart.rider` |
-
----
-
-## Method 1: Push from AI Studio UI (Instant Sync)
-
-1. Look at the **top right corner or Project Settings** in Google AI Studio.
-2. Click **"Push to GitHub"** (or **"Export as ZIP"**).
-3. If this is your first time, authorize AI Studio to link with your GitHub account.
-4. Select or create your destination repository (e.g., `omnicart-ecosystem`).
-5. AI Studio will automatically push all source files, Gradle scripts, database entities, and the 3 standalone app entry points.
+| App Name | Audience | Package / Application ID | Main Launcher | Icon |
+| :--- | :--- | :--- | :--- | :--- |
+| **🛒 OmniCart Shopper** | Shoppers & Consumers | `com.omnicart.shopper` | [`CustomerAppActivity`](file:///root/Zenith-Cart/app/src/main/java/com/example/CustomerAppActivity.kt) | `ic_launcher` |
+| **🏪 OmniCart Partner** | Darkstore Merchants & Vendors | `com.omnicart.partner` | [`PartnerAppActivity`](file:///root/Zenith-Cart/app/src/main/java/com/example/PartnerAppActivity.kt) | `ic_launcher_partner` |
+| **🛵 OmniCart Rider** | Delivery Fleet & Couriers | `com.omnicart.rider` | [`RiderAppActivity`](file:///root/Zenith-Cart/app/src/main/java/com/example/RiderAppActivity.kt) | `ic_launcher_rider` |
+| **📱 OmniCart Unified** | Debug & Full Demo Suite | `com.aistudio.omnicart.xkpw` | [`MainActivity`](file:///root/Zenith-Cart/app/src/main/java/com/example/MainActivity.kt) | `ic_launcher` |
 
 ---
 
-## Method 2: Push as 3 Separate GitHub Repositories
+## 🏗️ Architectural Clean Separation
 
-If you want 3 distinct GitHub repositories on your profile:
-* `https://github.com/your-username/omnicart-shopper`
-* `https://github.com/your-username/omnicart-partner`
-* `https://github.com/your-username/omnicart-rider`
+Each app is decoupled at the UI, activity, manifest, and build flavor levels:
 
-Run the following commands in your terminal:
+1. **Dedicated Composable Trees**:
+   - `CustomerAppScreen(viewModel)`: 10-minute grocery catalogue, 5% GST & packaging cart, live order tracking, location picker, wishlist, customer support.
+   - `PartnerAppScreen(viewModel)`: 90-second inbound order pick & pack queue, live product addition/stock editor, micro-darkstore inventory, bank & UPI payout analytics.
+   - `RiderFleetScreen(viewModel)`: On/off duty toggle, 10-minute flash dispatch pod requests, 4-digit doorstep handover OTP verification, rider earnings wallet.
 
-### Step 1: Add Remotes for the 3 Repositories
-```bash
-git remote add origin-shopper https://github.com/YOUR_USERNAME/omnicart-shopper.git
-git remote add origin-partner https://github.com/YOUR_USERNAME/omnicart-partner.git
-git remote add origin-rider   https://github.com/YOUR_USERNAME/omnicart-rider.git
-```
+2. **Dedicated Launcher Activities**:
+   - `CustomerAppActivity`: Directly boots into `CustomerAppScreen`.
+   - `PartnerAppActivity`: Directly boots into `PartnerAppScreen`.
+   - `RiderAppActivity`: Directly boots into `RiderFleetScreen`.
+   - `MainActivity`: Orchestrates all 3 with an ecosystem switcher pill bar for internal testing.
 
-### Step 2: Push App 1 (Shopper App)
-To make `CustomerAppActivity` the primary launch activity in `AndroidManifest.xml`:
-```bash
-git checkout -b app-shopper
-# In AndroidManifest.xml, ensure CustomerAppActivity has android.intent.category.LAUNCHER
-git push -u origin-shopper app-shopper:main
-```
-
-### Step 3: Push App 2 (Merchant Partner App)
-```bash
-git checkout -b app-partner
-# In AndroidManifest.xml, ensure PartnerAppActivity has android.intent.category.LAUNCHER
-git push -u origin-partner app-partner:main
-```
-
-### Step 4: Push App 3 (Delivery Fleet / Rider App)
-```bash
-git checkout -b app-rider
-# In AndroidManifest.xml, ensure RiderAppActivity has android.intent.category.LAUNCHER
-git push -u origin-rider app-rider:main
-```
+3. **Manifest Source Sets (No Duplicate Icon Conflicts)**:
+   - `app/src/main/AndroidManifest.xml`: Declares activities without launcher intent filters.
+   - `app/src/shopper/AndroidManifest.xml`: Attaches `LAUNCHER` to `CustomerAppActivity`.
+   - `app/src/partner/AndroidManifest.xml`: Attaches `LAUNCHER` to `PartnerAppActivity`.
+   - `app/src/rider/AndroidManifest.xml`: Attaches `LAUNCHER` to `RiderAppActivity`.
+   - `app/src/unified/AndroidManifest.xml`: Attaches `LAUNCHER` to `MainActivity`.
 
 ---
 
-## Method 3: Unified App with Standalone Mode (`lockMode`)
+## 🚀 Building Standalone APKs via Gradle Flavors
 
-The codebase is built with modular flexibility:
-* **Interactive Mode (`lockMode = false`):** The top pill switcher allows testing and demonstrating all three apps in a single installed APK.
-* **Locked Production Mode (`lockMode = true`):** Removes the switcher completely, locking the user into their respective role (Shopper, Merchant, or Delivery Boy) for production Play Store release.
+Run standard Gradle assemble commands from the project root:
 
-```kotlin
-// Example inside CustomerAppActivity:
-OmniMainScreen(
-    viewModel = viewModel,
-    initialMode = EcosystemApp.CUSTOMER,
-    lockMode = true // Top switcher removed; strictly customer app
-)
+```bash
+# 1. Build OmniCart Shopper APK (com.omnicart.shopper)
+./gradlew :app:assembleShopperDebug
+
+# 2. Build OmniCart Partner APK (com.omnicart.partner)
+./gradlew :app:assemblePartnerDebug
+
+# 3. Build OmniCart Rider APK (com.omnicart.rider)
+./gradlew :app:assembleRiderDebug
+
+# 4. Build Unified Multi-Role APK (com.aistudio.omnicart.xkpw)
+./gradlew :app:assembleUnifiedDebug
 ```
+
+Output APK locations:
+- `app/build/outputs/apk/shopper/debug/app-shopper-debug.apk`
+- `app/build/outputs/apk/partner/debug/app-partner-debug.apk`
+- `app/build/outputs/apk/rider/debug/app-rider-debug.apk`
+- `app/build/outputs/apk/unified/debug/app-unified-debug.apk`
+
+---
+
+## 📦 Automated Export to 3 Independent Projects / Repositories
+
+To export 3 distinct standalone project folders ready for separate GitHub repositories:
+
+```bash
+# Run the standalone exporter
+./scripts/export_standalone_apps.sh /path/to/destination
+```
+
+This generates:
+- `/path/to/destination/OmniCart-Shopper`
+- `/path/to/destination/OmniCart-Partner`
+- `/path/to/destination/OmniCart-Rider`
+
+Each directory contains a standalone `app/build.gradle.kts`, standalone `AndroidManifest.xml`, standalone `README.md`, and complete Kotlin source trees with zero flavor dependencies.

@@ -536,8 +536,11 @@ class EcommerceViewModel(application: Application) : AndroidViewModel(applicatio
 
         val subtotal = cartSubtotalUsd.value
         val discount = subtotal * (promoDiscountPercent.value / 100.0)
-        val deliveryFee = if (subtotal > 50.0) 0.0 else 4.99
-        val totalUsd = (subtotal - discount + deliveryFee).coerceAtLeast(0.0)
+        val discountedSubtotal = (subtotal - discount).coerceAtLeast(0.0)
+        val packagingFee = if (cartItems.value.isNotEmpty()) 0.18 else 0.0
+        val taxGst = discountedSubtotal * 0.05
+        val deliveryFee = if (discountedSubtotal >= 25.0 || cartItems.value.isEmpty()) 0.0 else 1.50
+        val totalUsd = if (cartItems.value.isEmpty()) 0.0 else (discountedSubtotal + packagingFee + taxGst + deliveryFee).coerceAtLeast(0.0)
 
         viewModelScope.launch {
             paymentState.value = PaymentState.Processing
@@ -571,8 +574,11 @@ class EcommerceViewModel(application: Application) : AndroidViewModel(applicatio
                     delay(800)
                     val subtotal = cartSubtotalUsd.value
                     val discount = subtotal * (promoDiscountPercent.value / 100.0)
-                    val deliveryFee = if (subtotal > 50.0) 0.0 else 4.99
-                    val totalUsd = (subtotal - discount + deliveryFee).coerceAtLeast(0.0)
+                    val discountedSubtotal = (subtotal - discount).coerceAtLeast(0.0)
+                    val packagingFee = if (cartItems.value.isNotEmpty()) 0.18 else 0.0
+                    val taxGst = discountedSubtotal * 0.05
+                    val deliveryFee = if (discountedSubtotal >= 25.0 || cartItems.value.isEmpty()) 0.0 else 1.50
+                    val totalUsd = if (cartItems.value.isEmpty()) 0.0 else (discountedSubtotal + packagingFee + taxGst + deliveryFee).coerceAtLeast(0.0)
                     finalizeOrder(paymentMethod, shippingAddress, totalUsd, isTenMinDelivery, carrierName)
                 }
             } else {
@@ -672,6 +678,83 @@ class EcommerceViewModel(application: Application) : AndroidViewModel(applicatio
     fun restockProduct(productId: String, amount: Int) {
         viewModelScope.launch {
             repository.restockProduct(productId, amount)
+        }
+    }
+
+    fun addNewProduct(
+        title: String,
+        category: String,
+        priceUsd: Double,
+        stock: Int,
+        sku: String,
+        vendorId: String = "VEND-GREEN",
+        vendorName: String = "GreenGlow Organic Artisans",
+        description: String = "",
+        brand: String = "OmniFresh",
+        fastEta: String = "10 Mins"
+    ) {
+        viewModelScope.launch {
+            val prod = ProductEntity(
+                id = "SKU-${System.currentTimeMillis() % 100000}",
+                title = title,
+                category = category,
+                priceUsd = priceUsd,
+                originalPriceUsd = priceUsd * 1.25,
+                discountPercent = 20,
+                rating = 4.8f,
+                reviewCount = 1,
+                stock = stock,
+                sku = sku.ifBlank { "SKU-${(1000..9999).random()}" },
+                vendorId = vendorId,
+                vendorName = vendorName,
+                description = description.ifBlank { "Fresh quick-commerce SKU verified by darkstore merchant." },
+                features = "Hyperlocal Flash Delivery, Temperature Controlled, 100% Quality Assured",
+                isFastDelivery = true,
+                fastDeliveryEta = fastEta,
+                isTrending = true,
+                isFlashDeal = false,
+                flashDealEndsInMinutes = 0,
+                brand = brand
+            )
+            repository.addProduct(prod)
+        }
+    }
+
+    fun updateProductPriceAndStock(productId: String, priceUsd: Double, stock: Int) {
+        viewModelScope.launch {
+            repository.updateProductPriceAndStock(productId, priceUsd, stock)
+        }
+    }
+
+    fun deleteProduct(productId: String) {
+        viewModelScope.launch {
+            repository.deleteProduct(productId)
+        }
+    }
+
+    // --- Darkstore Order Fulfillment (Pick, Pack & Dispatch) ---
+    fun markOrderAsPacked(orderId: String) {
+        viewModelScope.launch {
+            val order = allOrders.value.find { it.orderId == orderId }
+            val podName = order?.darkstoreName ?: "Darkstore Pod"
+            repository.advanceShipmentStatus(
+                orderId,
+                "PACKED",
+                "Packed & Sealed at $podName in 78 seconds (Awaiting carrier pickup)"
+            )
+        }
+    }
+
+    fun handOffOrderToRider(orderId: String) {
+        viewModelScope.launch {
+            val order = allOrders.value.find { it.orderId == orderId }
+            val riderName = order?.riderName ?: "Ramesh Kumar"
+            val vehicle = order?.riderVehicle ?: "Ather EV"
+            repository.advanceShipmentStatus(
+                orderId,
+                "IN_TRANSIT",
+                "Handed over to Rider $riderName ($vehicle) • 10-Min Flash Transit"
+            )
         }
     }
 

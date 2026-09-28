@@ -8,8 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.example.ui.EcosystemApp
-import com.example.ui.OmniMainScreen
+import com.example.ui.CustomerAppScreen
 import com.example.ui.theme.OmniCartTheme
 import com.example.ui.viewmodel.EcommerceViewModel
 
@@ -29,11 +28,7 @@ class CustomerAppActivity : ComponentActivity() {
         setContent {
             OmniCartTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    OmniMainScreen(
-                        viewModel = viewModel,
-                        initialMode = EcosystemApp.CUSTOMER,
-                        lockMode = true
-                    )
+                    CustomerAppScreen(viewModel = viewModel)
                 }
             }
         }

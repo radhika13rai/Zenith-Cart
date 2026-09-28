@@ -29,8 +29,17 @@ interface OmniCartDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProducts(products: List<ProductEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProduct(product: ProductEntity)
+
     @Query("UPDATE products SET stock = :newStock WHERE id = :productId")
     suspend fun updateStock(productId: String, newStock: Int)
+
+    @Query("UPDATE products SET priceUsd = :price, stock = :stock WHERE id = :productId")
+    suspend fun updateProductPriceAndStock(productId: String, price: Double, stock: Int)
+
+    @Query("DELETE FROM products WHERE id = :productId")
+    suspend fun deleteProduct(productId: String)
 
     @Update
     suspend fun updateProduct(product: ProductEntity)

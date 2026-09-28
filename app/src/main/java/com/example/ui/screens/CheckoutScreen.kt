@@ -110,8 +110,12 @@ fun CheckoutScreen(
     var otpInput by remember { mutableStateOf("") }
 
     val discountAmount = subtotal * (promoDiscountPercent / 100.0)
-    val deliveryFee = if (subtotal >= 50.0 || subtotal == 0.0) 0.0 else 4.99
-    val finalTotal = (subtotal - discountAmount + deliveryFee).coerceAtLeast(0.0)
+    val discountedSubtotal = (subtotal - discountAmount).coerceAtLeast(0.0)
+    val packagingFee = if (cartItems.isNotEmpty()) 0.18 else 0.0
+    val taxGstAmount = discountedSubtotal * 0.05
+    val freeShippingThreshold = 25.0
+    val deliveryFee = if (discountedSubtotal >= freeShippingThreshold || cartItems.isEmpty()) 0.0 else 1.50
+    val finalTotal = if (cartItems.isEmpty()) 0.0 else (discountedSubtotal + packagingFee + taxGstAmount + deliveryFee).coerceAtLeast(0.0)
 
     // Handle Order Placed successfully
     if (paymentState is PaymentState.Success) {
@@ -596,16 +600,49 @@ fun CheckoutScreen(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "Amount Payable",
+                            text = "Itemized Bill Breakdown",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Items Subtotal", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(currency.format(subtotal), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (discountAmount > 0.0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Coupon Discount ($promoDiscountPercent%)", fontSize = 12.sp, color = GreenSuccess)
+                                Text("- ${currency.format(discountAmount)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GreenSuccess)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (isTenMinuteDelivery) "10-Min Flash Delivery" else "Standard Delivery", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (deliveryFee == 0.0) "FREE" else currency.format(deliveryFee), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (deliveryFee == 0.0) GreenSuccess else MaterialTheme.colorScheme.onSurface)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Eco Packaging & Bagging", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(currency.format(packagingFee), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Taxes & GST (5%)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(currency.format(taxGstAmount), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Total (${currency.code})", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Column {
+                                Text("Total Amount (${currency.code})", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Inclusive of all taxes & packaging", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             Text(
                                 text = currency.format(finalTotal),
                                 fontWeight = FontWeight.ExtraBold,
