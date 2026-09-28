@@ -1156,7 +1156,7 @@ private fun InboundQueueTab(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", order.totalAmountUsd * currency.rate)}",
+                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", order.totalAmountUsd * currency.rateToUsd)}",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 13.sp,
                                 color = CoralPrimary
@@ -1341,14 +1341,14 @@ private fun CatalogStockTab(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", prod.priceUsd * currency.rate)}",
+                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", prod.priceUsd * currency.rateToUsd)}",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp,
                                 color = CoralPrimary
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", prod.originalPriceUsd * currency.rate)}",
+                                text = "${currency.symbol}${String.format(Locale.US, "%.2f", prod.originalPriceUsd * currency.rateToUsd)}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textDecoration = TextDecoration.LineThrough
