@@ -1,0 +1,6 @@
+{
+  "name": "OmniCart",
+  "description": "Premium multi-vendor e-commerce platform with real-time inventory management, multi-currency secure checkout, 3PL logistics, and advanced analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

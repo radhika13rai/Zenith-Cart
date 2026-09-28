@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.0"
+        android:scaleY="1.0">
+        <!-- Store Roof Awning -->
+        <path
+            android:pathData="M26,46 L82,46 L76,32 L32,32 Z"
+            android:fillColor="#FDBF50" />
+            
+        <!-- Awning Scallops -->
+        <path
+            android:pathData="M26,46 Q33,52 40,46 Q47,52 54,46 Q61,52 68,46 Q75,52 82,46"
+            android:strokeWidth="3"
+            android:strokeColor="#FF724C"
+            android:fillColor="#FDBF50" />
+
+        <!-- Store Building Body -->
+        <path
+            android:pathData="M30,48 L78,48 L78,78 C78,80.2 76.2,82 74,82 L34,82 C31.8,82 30,80.2 30,78 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="30"
+                    android:startY="48"
+                    android:endX="78"
+                    android:endY="82"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#2A2C41" />
+                    <item android:offset="1.0" android:color="#1F2030" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Store Door -->
+        <path
+            android:pathData="M46,60 L62,60 L62,82 L46,82 Z"
+            android:fillColor="#FF724C" />
+            
+        <!-- Door Window -->
+        <path
+            android:pathData="M50,64 L58,64 L58,72 L50,72 Z"
+            android:fillColor="#FFFFFF" />
+
+        <!-- Verified Merchant Star Badge -->
+        <path
+            android:pathData="M68,30 L70,34 L74,34 L71,37 L72,41 L68,38 L64,41 L65,37 L62,34 L66,34 Z"
+            android:fillColor="#2ECC71" />
+    </group>
+</vector>
