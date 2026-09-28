@@ -16,6 +16,8 @@ enum class Currency(
     JPY("JPY", "¥", 155.00, "🇯🇵", "Japanese Yen"),
     CAD("CAD", "C$", 1.36, "🇨🇦", "Canadian Dollar");
 
+    val rate: Double get() = rateToUsd
+
     fun format(amountInUsd: Double): String {
         val converted = amountInUsd * rateToUsd
         return if (this == JPY) {
