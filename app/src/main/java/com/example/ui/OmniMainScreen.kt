@@ -50,6 +50,7 @@ enum class EcosystemApp(val label: String, val appTitle: String, val roleBadge: 
 }
 
 sealed class Screen {
+    object Onboarding : Screen()
     object Home : Screen()
     object Orders : Screen()
     object Analytics : Screen()

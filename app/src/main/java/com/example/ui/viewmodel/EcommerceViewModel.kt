@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.OmniCartDatabase
@@ -77,6 +78,23 @@ class EcommerceViewModel(application: Application) : AndroidViewModel(applicatio
     val selectedDeliveryPartner = MutableStateFlow<String>("Shadowfax Express")
     
     // Quick-Commerce Customer Journey States
+    private val prefs by lazy {
+        getApplication<Application>().getSharedPreferences("omnicart_shopper_prefs", Context.MODE_PRIVATE)
+    }
+    val hasCompletedOnboarding = MutableStateFlow(
+        prefs.getBoolean("has_completed_onboarding", false)
+    )
+
+    fun completeOnboarding() {
+        hasCompletedOnboarding.value = true
+        prefs.edit().putBoolean("has_completed_onboarding", true).apply()
+    }
+
+    fun resetOnboarding() {
+        hasCompletedOnboarding.value = false
+        prefs.edit().putBoolean("has_completed_onboarding", false).apply()
+    }
+
     val isLocationConfirmed = MutableStateFlow<Boolean>(false)
     val isUserLoggedIn = MutableStateFlow<Boolean>(false)
     val activeDeliveryEta = MutableStateFlow<String>("10–12 min")

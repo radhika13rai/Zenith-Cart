@@ -89,6 +89,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -228,6 +229,8 @@ fun LocationPickerScreen(
     val activeAddress by viewModel.selectedAddress.collectAsState()
 
     var activePreset by remember { mutableStateOf(presetLocations.first()) }
+    var currentLatitude by remember { mutableDoubleStateOf(activePreset.latitude) }
+    var currentLongitude by remember { mutableDoubleStateOf(activePreset.longitude) }
     var selectedLabel by remember { mutableStateOf("Home") }
     var flatAndBuilding by remember { mutableStateOf(activePreset.defaultBuilding) }
     var floorNumber by remember { mutableStateOf("4th") }
@@ -292,11 +295,15 @@ fun LocationPickerScreen(
                         city = activePreset.cityName
                         state = activePreset.state
                         pincode = activePreset.pincode
+                        currentLatitude = activePreset.latitude
+                        currentLongitude = activePreset.longitude
                         currentStep = LocationPickerStep.MAP_CONFIRMATION
                         isLocatingGps = false
                     },
                     onSelectPresetArea = { preset ->
                         activePreset = preset
+                        currentLatitude = preset.latitude
+                        currentLongitude = preset.longitude
                         panOffsetX = preset.initialPanX
                         panOffsetY = preset.initialPanY
                         flatAndBuilding = preset.defaultBuilding
@@ -327,6 +334,19 @@ fun LocationPickerScreen(
                     panOffsetY = panOffsetY,
                     zoomScale = zoomScale,
                     activePreset = activePreset,
+                    currentLatitude = currentLatitude,
+                    currentLongitude = currentLongitude,
+                    onLocationMoved = { lat, lng ->
+                        currentLatitude = lat
+                        currentLongitude = lng
+                        val deltaLat = lat - activePreset.latitude
+                        val deltaLng = lng - activePreset.longitude
+                        streetLocality = if (kotlin.math.abs(deltaLat) > 0.0005 || kotlin.math.abs(deltaLng) > 0.0005) {
+                            "${activePreset.localityName} (${String.format(java.util.Locale.US, "%.4f", lat)}, ${String.format(java.util.Locale.US, "%.4f", lng)})"
+                        } else {
+                            activePreset.localityName
+                        }
+                    },
                     streetLocality = streetLocality,
                     flatAndBuilding = flatAndBuilding,
                     onFlatChange = { flatAndBuilding = it },
@@ -351,10 +371,14 @@ fun LocationPickerScreen(
                         panOffsetX = 0f
                         panOffsetY = 0f
                         zoomScale = 1.0f
+                        currentLatitude = activePreset.latitude
+                        currentLongitude = activePreset.longitude
                         updateAddressFromPan(0f, 0f)
                     },
                     onSelectPresetChip = { preset ->
                         activePreset = preset
+                        currentLatitude = preset.latitude
+                        currentLongitude = preset.longitude
                         panOffsetX = preset.initialPanX
                         panOffsetY = preset.initialPanY
                         flatAndBuilding = preset.defaultBuilding
@@ -398,8 +422,8 @@ fun LocationPickerScreen(
                             state = state,
                             pincode = pincode,
                             deliveryInstructions = selectedInstruction,
-                            latitude = 22.5726 + (panOffsetY * 0.0001),
-                            longitude = 88.3639 + (panOffsetX * 0.0001),
+                            latitude = currentLatitude,
+                            longitude = currentLongitude,
                             accuracyText = "High (±4m)"
                         )
                         onLocationConfirmed()
@@ -713,6 +737,9 @@ private fun InteractiveMapView(
     panOffsetY: Float,
     zoomScale: Float,
     activePreset: PresetCityArea,
+    currentLatitude: Double,
+    currentLongitude: Double,
+    onLocationMoved: (Double, Double) -> Unit,
     streetLocality: String,
     flatAndBuilding: String,
     onFlatChange: (String) -> Unit,
@@ -739,14 +766,14 @@ private fun InteractiveMapView(
     var isSatelliteView by remember { mutableStateOf(false) }
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(activePreset.latitude, activePreset.longitude), 16.5f)
+        position = CameraPosition.fromLatLngZoom(LatLng(currentLatitude, currentLongitude), 16.5f)
     }
 
-    LaunchedEffect(activePreset) {
+    LaunchedEffect(currentLatitude, currentLongitude) {
         try {
             cameraPositionState.animate(
                 CameraUpdateFactory.newLatLngZoom(
-                    LatLng(activePreset.latitude, activePreset.longitude),
+                    LatLng(currentLatitude, currentLongitude),
                     16.5f
                 )
             )
@@ -787,8 +814,8 @@ private fun InteractiveMapView(
                 // Real Live Embedded Map with Street, Satellite and Google SDK modes
                 OmniUniversalMapView(
                     modifier = Modifier.fillMaxSize().testTag("universal_delivery_map"),
-                    latitude = activePreset.latitude,
-                    longitude = activePreset.longitude,
+                    latitude = currentLatitude,
+                    longitude = currentLongitude,
                     zoom = 16,
                     podLat = activePreset.podLat,
                     podLng = activePreset.podLng,
@@ -796,8 +823,9 @@ private fun InteractiveMapView(
                     interactive = true,
                     showControls = true,
                     showExternalMapButton = true,
+                    initialDisplayMode = OmniMapDisplayMode.LIVE_STREETS,
                     onLocationSelected = { lat, lng ->
-                        // Coordinates updated from pinpoint drag
+                        onLocationMoved(lat, lng)
                     }
                 )
             } else {
@@ -809,6 +837,10 @@ private fun InteractiveMapView(
                             detectDragGestures { change, dragAmount ->
                                 change.consume()
                                 onMapDragged(dragAmount.x, dragAmount.y)
+                                onLocationMoved(
+                                    activePreset.latitude - (panOffsetY * 0.00005),
+                                    activePreset.longitude + (panOffsetX * 0.00005)
+                                )
                             }
                         }
                 ) {
@@ -987,7 +1019,7 @@ private fun InteractiveMapView(
                                 modifier = Modifier.clickable { mapEngine = MapEngine.GOOGLE_MAPS }
                             ) {
                                 Text(
-                                    text = "🗺️ Google Maps",
+                                    text = "🗺️ Live Map",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (mapEngine == MapEngine.GOOGLE_MAPS) Color.White else MaterialTheme.colorScheme.onSurface,
