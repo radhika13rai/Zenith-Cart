@@ -11,51 +11,27 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher_rider"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_launcher_rider_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
 
-        <!-- Google Maps API Key injected from .env via secrets-gradle-plugin -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
-        <!-- 1. Customer / Shopper App Activity -->
-        <activity
-            android:name=".CustomerAppActivity"
-            android:exported="false"
-            android:label="OmniCart Shopper"
-            android:taskAffinity="com.omnicart.shopper"
-            android:theme="@style/Theme.MyApplication" />
-
-        <!-- 2. Multi-Role Unified App Activity -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.MyApplication" />
-
-        <!-- 3. Merchant / Darkstore Partner App Activity -->
-        <activity
-            android:name=".PartnerAppActivity"
-            android:exported="false"
-            android:icon="@mipmap/ic_launcher_partner"
-            android:roundIcon="@mipmap/ic_launcher_partner_round"
-            android:label="OmniCart Partner"
-            android:taskAffinity="com.omnicart.partner"
-            android:theme="@style/Theme.MyApplication" />
-
-        <!-- 4. Delivery Rider Fleet App Activity -->
         <activity
             android:name=".RiderAppActivity"
-            android:exported="false"
-            android:icon="@mipmap/ic_launcher_rider"
-            android:roundIcon="@mipmap/ic_launcher_rider_round"
-            android:label="OmniCart Rider"
-            android:taskAffinity="com.omnicart.rider"
-            android:theme="@style/Theme.MyApplication" />
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>
