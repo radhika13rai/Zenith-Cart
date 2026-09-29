@@ -192,6 +192,11 @@ fun CustomerAppScreen(
                         is Screen.Onboarding -> {
                             CustomerOnboardingScreen(
                                 viewModel = viewModel,
+                                onComplete = {
+                                    viewModel.completeOnboarding()
+                                    customerScreenStack.clear()
+                                    currentCustomerScreen = Screen.Home
+                                },
                                 onGetStarted = {
                                     viewModel.completeOnboarding()
                                     customerScreenStack.clear()
