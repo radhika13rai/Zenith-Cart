@@ -1,21 +1,50 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard & R8 Optimization Rules for OmniCart
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# 1. WebView & JavaScript Bridge (Required for OmniMapView Leaflet/OSM JS interface)
+-keepattributes JavascriptInterface
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class com.example.ui.components.MapBridge { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# 2. Line numbers and stack trace preservation
+-keepattributes SourceFile,LineNumberTable
+-keepattributes *Annotation*
+-keepattributes Signature
+-keepattributes InnerClasses,EnclosingMethod
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 3. Room Database & Local Cache Entities
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    public abstract <methods>;
+}
+-dontwarn androidx.room.paging.**
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao class * { *; }
+-keep class com.example.model.** { *; }
+-keep class com.example.data.local.** { *; }
+
+# 4. Moshi & JSON Serialization
+-keepclassmembers class * {
+    @com.squareup.moshi.* <methods>;
+}
+-keep @com.squareup.moshi.JsonClass class * { *; }
+-dontwarn com.squareup.moshi.**
+
+# 5. OkHttp & Retrofit
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn retrofit2.**
+
+# 6. Kotlin Coroutines & Flow
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-dontwarn kotlinx.coroutines.**
+
+# 7. Coil Image Loading
+-dontwarn coil.**
+-keep class coil.** { *; }
+
+# 8. Google Play Services & Maps
+-keep class com.google.android.gms.maps.** { *; }
+-keep interface com.google.android.gms.maps.** { *; }
+-dontwarn com.google.android.gms.maps.**

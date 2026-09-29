@@ -1,4 +1,4 @@
-name: Build OmniCart Android APKs
+name: Build OmniCart Android APKs & AAB Bundles
 
 on:
   push:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build & Package APKs
+    name: Build & Package Production APKs & AABs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
@@ -31,7 +31,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Prepare Secrets & Debug Keystore
+      - name: Prepare Secrets & Keystores
         run: |
           # Ensure .env exists from template if not provided
           if [ ! -f ".env" ] && [ -f ".env.example" ]; then
@@ -41,6 +41,21 @@ jobs:
           # Decode debug keystore if base64 file exists
           if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
             base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
+          # Decode release keystore if base64 file exists
+          if [ -f "release.keystore.base64" ] && [ ! -f "release.keystore" ]; then
+            base64 -d release.keystore.base64 > release.keystore
+          fi
+
+          # Generate fallback release keystore if still not present
+          if [ ! -f "release.keystore" ]; then
+            keytool -genkeypair -v -keystore release.keystore \
+              -alias "omnicart" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "omnicart@2026" \
+              -keypass "omnicart@2026" \
+              -dname "CN=OmniCart, OU=Production, O=OmniCart Technologies, L=Bengaluru, ST=Karnataka, C=IN"
           fi
 
           # Ensure gradlew and wrapper jar exist
@@ -54,34 +69,56 @@ jobs:
 
           chmod +x gradlew
 
-      - name: Build All 3 Ecosystem APKs (Main Branch)
+      - name: Build All Production Ecosystem Binaries (Main Branch)
         if: github.ref == 'refs/heads/main'
         run: |
-          ./gradlew :app:assembleShopperDebug :app:assemblePartnerDebug :app:assembleRiderDebug :app:assembleUnifiedDebug --stacktrace
-          mkdir -p artifacts
-          cp app/build/outputs/apk/shopper/debug/*-debug.apk artifacts/OmniCart_Shopper.apk 2>/dev/null || cp app/build/outputs/apk/shopper/debug/*.apk artifacts/OmniCart_Shopper.apk
-          cp app/build/outputs/apk/partner/debug/*-debug.apk artifacts/OmniCart_Partner.apk 2>/dev/null || cp app/build/outputs/apk/partner/debug/*.apk artifacts/OmniCart_Partner.apk
-          cp app/build/outputs/apk/rider/debug/*-debug.apk artifacts/OmniCart_Rider.apk 2>/dev/null || cp app/build/outputs/apk/rider/debug/*.apk artifacts/OmniCart_Rider.apk
-          cp app/build/outputs/apk/unified/debug/*-debug.apk artifacts/OmniCart_Unified.apk 2>/dev/null || cp app/build/outputs/apk/unified/debug/*.apk artifacts/OmniCart_Unified.apk
+          ./gradlew \
+            :app:assembleShopperRelease :app:assemblePartnerRelease :app:assembleRiderRelease :app:assembleUnifiedRelease \
+            :app:bundleShopperRelease :app:bundlePartnerRelease :app:bundleRiderRelease :app:bundleUnifiedRelease \
+            :app:assembleShopperDebug :app:assemblePartnerDebug :app:assembleRiderDebug :app:assembleUnifiedDebug \
+            --stacktrace
 
-      - name: Build Standalone APK (Dedicated Branch)
+          mkdir -p artifacts
+
+          # 1. Production Signed Release APKs
+          find app/build/outputs/apk/shopper/release -name "*.apk" -exec cp {} artifacts/OmniCart_Shopper_Release.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/partner/release -name "*.apk" -exec cp {} artifacts/OmniCart_Partner_Release.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/rider/release -name "*.apk" -exec cp {} artifacts/OmniCart_Rider_Release.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/unified/release -name "*.apk" -exec cp {} artifacts/OmniCart_Unified_Release.apk \; 2>/dev/null || true
+
+          # 2. Production Signed Play Store AAB Bundles
+          find app/build/outputs/bundle/shopperRelease -name "*.aab" -exec cp {} artifacts/OmniCart_Shopper_Release.aab \; 2>/dev/null || true
+          find app/build/outputs/bundle/partnerRelease -name "*.aab" -exec cp {} artifacts/OmniCart_Partner_Release.aab \; 2>/dev/null || true
+          find app/build/outputs/bundle/riderRelease -name "*.aab" -exec cp {} artifacts/OmniCart_Rider_Release.aab \; 2>/dev/null || true
+          find app/build/outputs/bundle/unifiedRelease -name "*.aab" -exec cp {} artifacts/OmniCart_Unified_Release.aab \; 2>/dev/null || true
+
+          # 3. Debug APKs
+          find app/build/outputs/apk/shopper/debug -name "*.apk" -exec cp {} artifacts/OmniCart_Shopper_Debug.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/partner/debug -name "*.apk" -exec cp {} artifacts/OmniCart_Partner_Debug.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/rider/debug -name "*.apk" -exec cp {} artifacts/OmniCart_Rider_Debug.apk \; 2>/dev/null || true
+          find app/build/outputs/apk/unified/debug -name "*.apk" -exec cp {} artifacts/OmniCart_Unified_Debug.apk \; 2>/dev/null || true
+
+      - name: Build Standalone Binaries (Dedicated Branch)
         if: github.ref != 'refs/heads/main'
         run: |
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew :app:assembleRelease :app:bundleRelease :app:assembleDebug --stacktrace
           mkdir -p artifacts
           BRANCH_NAME="${GITHUB_REF_NAME:-standalone}"
-          cp app/build/outputs/apk/debug/*-debug.apk "artifacts/OmniCart_${BRANCH_NAME}.apk" 2>/dev/null || cp app/build/outputs/apk/debug/*.apk "artifacts/OmniCart_${BRANCH_NAME}.apk"
 
-      - name: Verify Generated APKs
+          find app/build/outputs/apk/release -name "*.apk" -exec cp {} "artifacts/OmniCart_${BRANCH_NAME}_Release.apk" \; 2>/dev/null || true
+          find app/build/outputs/bundle/release -name "*.aab" -exec cp {} "artifacts/OmniCart_${BRANCH_NAME}_Release.aab" \; 2>/dev/null || true
+          find app/build/outputs/apk/debug -name "*.apk" -exec cp {} "artifacts/OmniCart_${BRANCH_NAME}_Debug.apk" \; 2>/dev/null || true
+
+      - name: Verify Generated Artifacts
         run: |
           echo "=================================================="
-          echo "📦 Compiled APK Artifacts:"
+          echo "📦 Compiled APK & AAB Production Artifacts:"
           ls -lh artifacts/
           echo "=================================================="
 
-      - name: Upload APKs to GitHub Actions Artifacts
+      - name: Upload Artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: omnicart-apks-${{ github.ref_name }}
-          path: artifacts/*.apk
+          name: omnicart-artifacts-${{ github.ref_name }}
+          path: artifacts/*
           retention-days: 30
