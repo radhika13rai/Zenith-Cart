@@ -65,6 +65,15 @@ export_app() {
     if [ -f "${ROOT_DIR}/.gitignore" ]; then
         cp "${ROOT_DIR}/.gitignore" "${OUT_DIR}/"
     fi
+    if [ -d "${ROOT_DIR}/.github" ]; then
+        cp -r "${ROOT_DIR}/.github" "${OUT_DIR}/"
+    fi
+    if [ -f "${ROOT_DIR}/debug.keystore.base64" ]; then
+        cp "${ROOT_DIR}/debug.keystore.base64" "${OUT_DIR}/"
+    fi
+    if [ -f "${ROOT_DIR}/release.keystore.base64" ]; then
+        cp "${ROOT_DIR}/release.keystore.base64" "${OUT_DIR}/"
+    fi
     cp -r "${ROOT_DIR}/gradle" "${OUT_DIR}/"
 
     # 2. Copy app folder structure
@@ -108,11 +117,20 @@ EOF
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val releaseKeystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/release.keystore"
+      val releaseKeystoreFile = file(releaseKeystorePath)
+      if (releaseKeystoreFile.exists()) {
+        storeFile = releaseKeystoreFile
+        storePassword = System.getenv("STORE_PASSWORD") ?: "omnicart@2026"
+        keyAlias = System.getenv("KEY_ALIAS") ?: "omnicart"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "omnicart@2026"
+      } else {
+        val debugKeystoreFile = file("${rootDir}/debug.keystore")
+        storeFile = debugKeystoreFile
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -262,15 +280,36 @@ Dedicated Standalone Application for OmniCart Quick-Commerce Ecosystem.
 
 ## Build and Run
 
-To build the debug APK:
+### 1. Production Signed Release APK (Play Store / Direct Install)
+\`\`\`bash
+./gradlew assembleRelease
+\`\`\`
+The signed production APK will be generated at:
+\`\`\`
+app/build/outputs/apk/release/app-release.apk
+\`\`\`
+
+### 2. Google Play Store App Bundle (.aab)
+\`\`\`bash
+./gradlew bundleRelease
+\`\`\`
+The signed App Bundle for Google Play Console submission will be generated at:
+\`\`\`
+app/build/outputs/bundle/release/app-release.aab
+\`\`\`
+
+### 3. Debug APK (Development & Testing)
 \`\`\`bash
 ./gradlew assembleDebug
 \`\`\`
-The APK will be generated at \`app/build/outputs/apk/debug/app-debug.apk\`.
+The debug APK will be generated at:
+\`\`\`
+app/build/outputs/apk/debug/app-debug.apk
+\`\`\`
 
-To install directly to an Android device:
+### 4. Install via ADB
 \`\`\`bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 \`\`\`
 EOF
 
