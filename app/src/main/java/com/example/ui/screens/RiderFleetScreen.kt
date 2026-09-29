@@ -36,6 +36,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -91,10 +93,12 @@ import com.example.ui.viewmodel.EcommerceViewModel
 @Composable
 fun RiderFleetScreen(viewModel: EcommerceViewModel) {
     val orders by viewModel.allOrders.collectAsState()
+    val currentRider by viewModel.currentRider.collectAsState()
     val context = LocalContext.current
 
     var isOnDuty by remember { mutableStateOf(true) }
     var showRiderKycDialog by remember { mutableStateOf(false) }
+    var showRegisterRiderDialog by remember { mutableStateOf(false) }
     var orderForOtpDialog by remember { mutableStateOf<OrderEntity?>(null) }
     var showLastDeliveryCelebration by remember { mutableStateOf(false) }
 
@@ -140,13 +144,13 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Ramesh Kumar (SH-8421)",
+                                    text = "${currentRider.name} (${currentRider.id})",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Shadowfax 10-Min Flash Fleet",
+                                    text = "Shadowfax 10-Min Flash Fleet • ${currentRider.assignedPod}",
                                     color = Color(0xFFA6A9C0),
                                     fontSize = 11.sp
                                 )
@@ -159,7 +163,7 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "4.92 ★ (1,480 Drops) • Ather 450X EV",
+                                        text = "${currentRider.rating} ★ (${currentRider.completedDeliveriesCount} Drops) • ${currentRider.vehicleModel}",
                                         color = AmberSecondary,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -223,26 +227,52 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Rider KYC & 3PL Integration Button
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.White.copy(alpha = 0.12f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showRiderKycDialog = true }
-                            .testTag("rider_kyc_details_btn")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        // Rider KYC & 3PL Integration Button
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White.copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showRiderKycDialog = true }
+                                .testTag("rider_kyc_details_btn")
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Rider KYC & 3PL Partner Integration", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Rider KYC", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text("View >", color = AmberSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
-                            Text("View Details >", color = AmberSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Register / Onboard New Delivery Partner Button
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CoralPrimary.copy(alpha = 0.25f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CoralPrimary),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .clickable { showRegisterRiderDialog = true }
+                                .testTag("register_rider_btn")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.ElectricScooter, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+ Onboard / Edit Rider", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -554,7 +584,7 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text("Aadhaar & Police Verified Rider", color = GreenSuccess, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("Cleared for 10-Minute Hyperlocal Micro-Fulfillment", color = SlateNavyDark, fontSize = 10.sp)
+                                Text("${currentRider.name} (${currentRider.id}) • Active on Fleet", color = SlateNavyDark, fontSize = 10.sp)
                             }
                         }
                     }
@@ -566,17 +596,22 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("UIDAI Aadhaar: •••• •••• 8421 (Active)", fontSize = 11.sp)
+                            Text("UIDAI Aadhaar: ${currentRider.aadhaarMasked} (Active)", fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Driving License: DL-KA01-20220084920 (Commercial EV)", fontSize = 11.sp)
+                            Text("Driving License: ${currentRider.licenseNumber} (Commercial)", fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("EV Registration: Ather 450X (KA-01-EQ-4821)", fontSize = 11.sp)
+                            Text("Vehicle Reg: ${currentRider.vehicleModel} (${currentRider.vehicleNumber})", fontSize = 11.sp)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Daily Payout VPA: ${currentRider.payoutUpiId}", fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(14.dp))
@@ -593,7 +628,7 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text("3PL Partner Integration Architecture:", color = AmberSecondary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("• Dispatch Engine: Shadowfax Hyperlocal Radius API\n• Geo-Fence: Indiranagar Pod #04 (< 2.5 km radius)\n• Doorstep Security: 4-digit Handover OTP verification\n• Daily Payouts: Auto-credited to linked UPI/Bank", color = Color.White, fontSize = 10.sp, lineHeight = 14.sp)
+                            Text("• Dispatch Engine: Shadowfax Hyperlocal Radius API\n• Geo-Fence: ${currentRider.assignedPod} (< 2.5 km radius)\n• Doorstep Security: 4-digit Handover OTP verification\n• Daily Payouts: Auto-credited to ${currentRider.payoutUpiId}", color = Color.White, fontSize = 10.sp, lineHeight = 14.sp)
                         }
                     }
                 }
@@ -604,6 +639,181 @@ fun RiderFleetScreen(viewModel: EcommerceViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
                 ) {
                     Text("Got It")
+                }
+            }
+        )
+    }
+
+    // Modal: Register / Onboard New Delivery Rider Dialog
+    if (showRegisterRiderDialog) {
+        var riderNameInput by remember { mutableStateOf(currentRider.name) }
+        var phoneInput by remember { mutableStateOf(currentRider.phone) }
+        var vehicleTypeInput by remember { mutableStateOf(currentRider.vehicleType) }
+        var vehicleModelInput by remember { mutableStateOf(currentRider.vehicleModel) }
+        var vehicleNumberInput by remember { mutableStateOf(currentRider.vehicleNumber) }
+        var licenseInput by remember { mutableStateOf(currentRider.licenseNumber) }
+        var aadhaarInput by remember { mutableStateOf("8421") }
+        var upiInput by remember { mutableStateOf(currentRider.payoutUpiId) }
+        var podInput by remember { mutableStateOf(currentRider.assignedPod) }
+
+        AlertDialog(
+            onDismissRequest = { showRegisterRiderDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ElectricScooter, contentDescription = null, tint = CoralPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Rider Fleet Onboarding & Registration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Register as a verified 10-minute micro-fulfillment delivery partner:",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = riderNameInput,
+                        onValueChange = { riderNameInput = it },
+                        label = { Text("Rider Full Name", fontSize = 11.sp) },
+                        placeholder = { Text("e.g. Ramesh Kumar", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("onboard_rider_name")
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = phoneInput,
+                            onValueChange = { phoneInput = it },
+                            label = { Text("Mobile Number", fontSize = 11.sp) },
+                            placeholder = { Text("+91 98765 43210", fontSize = 10.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            modifier = Modifier.weight(1f).testTag("onboard_rider_phone")
+                        )
+                        OutlinedTextField(
+                            value = vehicleTypeInput,
+                            onValueChange = { vehicleTypeInput = it },
+                            label = { Text("Vehicle Type", fontSize = 11.sp) },
+                            placeholder = { Text("EV Scooter / Bike", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = vehicleModelInput,
+                            onValueChange = { vehicleModelInput = it },
+                            label = { Text("Vehicle Model", fontSize = 11.sp) },
+                            placeholder = { Text("e.g. Ather 450X", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = vehicleNumberInput,
+                            onValueChange = { vehicleNumberInput = it.uppercase() },
+                            label = { Text("Vehicle Plate No.", fontSize = 11.sp) },
+                            placeholder = { Text("KA-01-EQ-4821", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("onboard_rider_plate")
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = licenseInput,
+                            onValueChange = { licenseInput = it.uppercase() },
+                            label = { Text("Driving License No.", fontSize = 11.sp) },
+                            placeholder = { Text("DL-KA01-...", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1.2f).testTag("onboard_rider_license")
+                        )
+                        OutlinedTextField(
+                            value = aadhaarInput,
+                            onValueChange = { aadhaarInput = it },
+                            label = { Text("Aadhaar No.", fontSize = 11.sp) },
+                            placeholder = { Text("Last 4 digits", fontSize = 10.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = upiInput,
+                            onValueChange = { upiInput = it },
+                            label = { Text("Daily Payout UPI VPA", fontSize = 11.sp) },
+                            placeholder = { Text("rider@okhdfcbank", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("onboard_rider_upi")
+                        )
+                        OutlinedTextField(
+                            value = podInput,
+                            onValueChange = { podInput = it },
+                            label = { Text("Assigned Darkstore", fontSize = 11.sp) },
+                            placeholder = { Text("Indiranagar Pod", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GreenSuccess.copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Instant Background Check & DigiLocker Aadhaar/DL Verification Active",
+                                fontSize = 10.sp,
+                                color = GreenSuccess,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (riderNameInput.isBlank()) {
+                            Toast.makeText(context, "Please enter your name", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        viewModel.registerOrUpdateRider(
+                            name = riderNameInput,
+                            phone = phoneInput,
+                            vehicleType = vehicleTypeInput,
+                            vehicleModel = vehicleModelInput,
+                            vehicleNumber = vehicleNumberInput,
+                            licenseNumber = licenseInput,
+                            aadhaarNumber = aadhaarInput,
+                            payoutUpiId = upiInput,
+                            assignedPod = podInput
+                        )
+                        Toast.makeText(context, "Rider registered & cleared for duty!", Toast.LENGTH_SHORT).show()
+                        showRegisterRiderDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                    modifier = Modifier.testTag("submit_onboard_rider")
+                ) {
+                    Text("Verify & Onboard")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRegisterRiderDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )
