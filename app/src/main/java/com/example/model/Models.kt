@@ -128,7 +128,22 @@ data class IndianAddress(
             if (landmark.isNotBlank()) append(" (Near $landmark)")
             append(", $city, $state - $pincode")
         }
-}
+data class RiderProfile(
+    val id: String = "SH-8421",
+    val name: String = "Ramesh Kumar",
+    val phone: String = "+91 98765 43210",
+    val vehicleType: String = "Electric Scooter (EV)",
+    val vehicleModel: String = "Ather 450X EV",
+    val vehicleNumber: String = "KA-01-EQ-4821",
+    val licenseNumber: String = "DL-KA01-20220084920",
+    val aadhaarMasked: String = "•••• •••• 8421",
+    val payoutUpiId: String = "ramesh.rider@okaxis",
+    val assignedPod: String = "Indiranagar Darkstore Pod #04",
+    val isKycVerified: Boolean = true,
+    val rating: Float = 4.92f,
+    val completedDeliveriesCount: Int = 1480,
+    val onTimeRatePercent: Double = 99.4
+)
 
 data class UserProfile(
     val id: String = "",
