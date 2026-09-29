@@ -80,9 +80,10 @@ data class OnboardingStep(
 @Composable
 fun CustomerOnboardingScreen(
     viewModel: EcommerceViewModel,
-    onNavigateToLocation: () -> Unit,
-    onNavigateToLogin: () -> Unit,
-    onComplete: () -> Unit
+    onNavigateToLocation: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {},
+    onComplete: () -> Unit = {},
+    onGetStarted: () -> Unit = onComplete
 ) {
     val steps = listOf(
         OnboardingStep(
@@ -379,6 +380,7 @@ fun CustomerOnboardingScreen(
                     onClick = {
                         viewModel.completeOnboarding()
                         onComplete()
+                        if (onGetStarted != onComplete) onGetStarted()
                     },
                     modifier = Modifier
                         .weight(1f)

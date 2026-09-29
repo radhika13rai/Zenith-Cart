@@ -16,6 +16,7 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.example.ui.components.OmniMapDisplayMode
 import com.example.ui.components.OmniUniversalMapView
 import com.example.ui.components.openInGoogleMaps
 import androidx.compose.animation.AnimatedVisibility
