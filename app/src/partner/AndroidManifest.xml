@@ -4,7 +4,8 @@
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher_partner"
-        android:roundIcon="@mipmap/ic_launcher_partner_round">
+        android:roundIcon="@mipmap/ic_launcher_partner_round"
+        tools:replace="android:icon,android:roundIcon,android:label">
         <activity
             android:name=".PartnerAppActivity"
             android:exported="true"
