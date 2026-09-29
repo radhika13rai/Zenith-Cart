@@ -128,6 +128,8 @@ data class IndianAddress(
             if (landmark.isNotBlank()) append(" (Near $landmark)")
             append(", $city, $state - $pincode")
         }
+}
+
 data class RiderProfile(
     val id: String = "SH-8421",
     val name: String = "Ramesh Kumar",
