@@ -16,6 +16,7 @@ import com.example.model.OrderEntity
 import com.example.model.ProductEntity
 import com.example.model.StoreAnalyticsData
 import com.example.model.SupportTicketEntity
+import com.example.model.RiderProfile
 import com.example.model.UserProfile
 import com.example.model.Vendor
 import kotlinx.coroutines.delay
@@ -315,6 +316,44 @@ class EcommerceViewModel(application: Application) : AndroidViewModel(applicatio
             panNumber = panNumber
         )
         vendors.value = listOf(newVendor) + vendors.value
+    }
+
+    // --- Rider Fleet Profile & Registration State ---
+    private val _currentRider = MutableStateFlow(RiderProfile())
+    val currentRider: StateFlow<RiderProfile> = _currentRider
+
+    fun registerOrUpdateRider(
+        name: String,
+        phone: String,
+        vehicleType: String,
+        vehicleModel: String,
+        vehicleNumber: String,
+        licenseNumber: String,
+        aadhaarNumber: String,
+        payoutUpiId: String,
+        assignedPod: String
+    ) {
+        val maskedAadhaar = if (aadhaarNumber.length >= 4) {
+            "•••• •••• " + aadhaarNumber.takeLast(4)
+        } else {
+            "•••• •••• 8421"
+        }
+        _currentRider.value = RiderProfile(
+            id = "SH-${(1000..9999).random()}",
+            name = name.ifBlank { "Ramesh Kumar" },
+            phone = phone.ifBlank { "+91 98765 43210" },
+            vehicleType = vehicleType,
+            vehicleModel = vehicleModel.ifBlank { "Ather 450X EV" },
+            vehicleNumber = vehicleNumber.ifBlank { "KA-01-EQ-4821" }.uppercase(),
+            licenseNumber = licenseNumber.ifBlank { "DL-KA01-20220084920" }.uppercase(),
+            aadhaarMasked = maskedAadhaar,
+            payoutUpiId = payoutUpiId.ifBlank { "rider@upi" },
+            assignedPod = assignedPod.ifBlank { "Indiranagar Darkstore Pod #04" },
+            isKycVerified = true,
+            rating = 5.0f,
+            completedDeliveriesCount = 0,
+            onTimeRatePercent = 100.0
+        )
     }
 
     fun updateVendorPayoutConfig(
