@@ -174,7 +174,7 @@ fun LoginOtpScreen(
         if (isSuccess) {
             // SUCCESS CELEBRATION CARD
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 modifier = Modifier
@@ -222,7 +222,7 @@ fun LoginOtpScreen(
 
                     // Member Details Badge
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = SlateNavyDark,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -266,7 +266,7 @@ fun LoginOtpScreen(
                             .height(52.dp)
                             .testTag("auth_continue_button"),
                         colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("START SHOPPING NOW ⚡", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
@@ -275,7 +275,7 @@ fun LoginOtpScreen(
         } else {
             // AUTH TABS: [ 📝 Register (New Account) | 🔑 Sign In (Existing) ]
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -284,7 +284,7 @@ fun LoginOtpScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = if (authMode == CustomerAuthMode.REGISTER) CoralPrimary else Color.Transparent,
                         modifier = Modifier
                             .weight(1f)
@@ -316,7 +316,7 @@ fun LoginOtpScreen(
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = if (authMode == CustomerAuthMode.LOGIN) CoralPrimary else Color.Transparent,
                         modifier = Modifier
                             .weight(1f)

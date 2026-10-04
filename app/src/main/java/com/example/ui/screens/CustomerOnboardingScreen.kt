@@ -184,7 +184,7 @@ fun CustomerOnboardingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("onboarding_hero_card"),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
@@ -316,7 +316,7 @@ fun CustomerOnboardingScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                         .testTag("onboarding_next_button"),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
                 ) {
                     Text(
@@ -339,7 +339,7 @@ fun CustomerOnboardingScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                         .testTag("onboarding_set_location_button"),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary)
                 ) {
                     Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
@@ -367,7 +367,7 @@ fun CustomerOnboardingScreen(
                         .weight(1f)
                         .height(48.dp)
                         .testTag("onboarding_login_button"),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
                         text = "Sign In / OTP",
@@ -386,7 +386,7 @@ fun CustomerOnboardingScreen(
                         .weight(1f)
                         .height(48.dp)
                         .testTag("onboarding_guest_button"),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SlateNavyDark)
                 ) {
                     Text(
