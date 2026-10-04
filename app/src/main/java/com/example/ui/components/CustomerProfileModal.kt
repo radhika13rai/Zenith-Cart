@@ -63,7 +63,7 @@ fun CustomerProfileModal(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             modifier = Modifier

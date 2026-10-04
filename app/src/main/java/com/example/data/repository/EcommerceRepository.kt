@@ -120,7 +120,7 @@ class EcommerceRepository(private val dao: OmniCartDao) {
         IndianAddress(
             id = "ADDR-1",
             label = "Home",
-            flatAndBuilding = "Flat 402, Prestige Ozone",
+            flatAndBuilding = "",
             streetAndLocality = "12th Main, HAL 2nd Stage, Indiranagar",
             landmark = "Near Metro Pillar 84",
             city = "Bengaluru",
@@ -132,7 +132,7 @@ class EcommerceRepository(private val dao: OmniCartDao) {
         IndianAddress(
             id = "ADDR-2",
             label = "Work",
-            flatAndBuilding = "Tower 4, 11th Floor, DLF CyberCity",
+            flatAndBuilding = "",
             streetAndLocality = "DLF Phase 2, Sector 24",
             landmark = "Opposite Rapid Metro Station",
             city = "Gurugram",
@@ -144,7 +144,7 @@ class EcommerceRepository(private val dao: OmniCartDao) {
         IndianAddress(
             id = "ADDR-3",
             label = "Apartment",
-            flatAndBuilding = "B-204, Sea Green Apartments",
+            flatAndBuilding = "",
             streetAndLocality = "Perry Cross Road, Bandra West",
             landmark = "Behind St. Andrews College",
             city = "Mumbai",
@@ -156,7 +156,7 @@ class EcommerceRepository(private val dao: OmniCartDao) {
         IndianAddress(
             id = "ADDR-4",
             label = "Other",
-            flatAndBuilding = "Villa 18, Road No. 36",
+            flatAndBuilding = "",
             streetAndLocality = "Jubilee Hills",
             landmark = "Near Peddamma Temple",
             city = "Hyderabad",

@@ -150,7 +150,7 @@ fun SupportScreen(
                 ) {
                     items(quickQuestions) { q ->
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.surface,
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                             modifier = Modifier.clickable {
@@ -222,7 +222,7 @@ fun SupportScreen(
                         onValueChange = { chatInput = it },
                         placeholder = { Text("Ask support or report order issue...", fontSize = 12.sp) },
                         singleLine = true,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("chat_input_field")
@@ -236,7 +236,7 @@ fun SupportScreen(
                             }
                         },
                         modifier = Modifier
-                            .background(CoralPrimary, CircleShape)
+                            .background(CoralPrimary, RoundedCornerShape(10.dp))
                             .testTag("send_chat_btn")
                     ) {
                         Icon(imageVector = Icons.Default.Send, contentDescription = "Send", tint = Color.White)

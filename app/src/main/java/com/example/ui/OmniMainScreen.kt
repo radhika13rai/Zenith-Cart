@@ -137,16 +137,16 @@ fun OmniMainScreen(
                     }
                 }
 
-                // 3 Dedicated Apps Switcher Pills
+                // 3 Dedicated Apps Switcher
                 Row(
                     modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
                         .padding(2.dp)
                 ) {
                     EcosystemApp.values().forEach { app ->
                         val isSelected = activeAppMode == app
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = if (isSelected) CoralPrimary else Color.Transparent,
                             modifier = Modifier
                                 .clickable { activeAppMode = app }
