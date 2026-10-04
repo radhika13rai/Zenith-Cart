@@ -128,7 +128,7 @@ enum class LocationPickerStep {
 data class PresetCityArea(
     val cityName: String,
     val localityName: String,
-    val defaultBuilding: String,
+    val defaultBuilding: String = "",
     val landmark: String,
     val state: String,
     val pincode: String,
@@ -145,7 +145,7 @@ val presetLocations = listOf(
     PresetCityArea(
         cityName = "Kolkata",
         localityName = "Salt Lake, Sector 2",
-        defaultBuilding = "Flat 4B, Green Residency",
+        defaultBuilding = "",
         landmark = "Near City Centre Mall",
         state = "West Bengal",
         pincode = "700091",
@@ -160,7 +160,7 @@ val presetLocations = listOf(
     PresetCityArea(
         cityName = "Bengaluru",
         localityName = "Indiranagar, 100ft Road",
-        defaultBuilding = "Sobha Ivory, 3rd Floor",
+        defaultBuilding = "",
         landmark = "Behind Metro Station Gate 1",
         state = "Karnataka",
         pincode = "560038",
@@ -175,7 +175,7 @@ val presetLocations = listOf(
     PresetCityArea(
         cityName = "Bengaluru",
         localityName = "Koramangala, 4th Block",
-        defaultBuilding = "Sterling Heights, 5B",
+        defaultBuilding = "",
         landmark = "Opposite Sony World Junction",
         state = "Karnataka",
         pincode = "560034",
@@ -190,7 +190,7 @@ val presetLocations = listOf(
     PresetCityArea(
         cityName = "Mumbai",
         localityName = "Bandra West, Hill Road",
-        defaultBuilding = "Sea Breeze Apartments, Flat 12",
+        defaultBuilding = "",
         landmark = "Near Holy Family Hospital",
         state = "Maharashtra",
         pincode = "400050",
@@ -205,7 +205,7 @@ val presetLocations = listOf(
     PresetCityArea(
         cityName = "Gurugram",
         localityName = "DLF CyberCity, Phase 2",
-        defaultBuilding = "Tower C, DLF Gateway",
+        defaultBuilding = "",
         landmark = "Next to Rapid Metro",
         state = "Haryana",
         pincode = "122002",
@@ -225,6 +225,7 @@ fun LocationPickerScreen(
     onLocationConfirmed: () -> Unit,
     onNavigateBack: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var currentStep by remember { mutableStateOf(LocationPickerStep.INITIAL_PROMPT) }
     val savedAddresses by viewModel.userAddresses.collectAsState()
     val activeAddress by viewModel.selectedAddress.collectAsState()
@@ -233,10 +234,10 @@ fun LocationPickerScreen(
     var currentLatitude by remember { mutableDoubleStateOf(activePreset.latitude) }
     var currentLongitude by remember { mutableDoubleStateOf(activePreset.longitude) }
     var selectedLabel by remember { mutableStateOf("Home") }
-    var flatAndBuilding by remember { mutableStateOf(activePreset.defaultBuilding) }
-    var floorNumber by remember { mutableStateOf("4th") }
+    var flatAndBuilding by remember { mutableStateOf("") }
+    var floorNumber by remember { mutableStateOf("") }
     var streetLocality by remember { mutableStateOf(activePreset.localityName) }
-    var landmark by remember { mutableStateOf(activePreset.landmark) }
+    var landmark by remember { mutableStateOf("") }
     var city by remember { mutableStateOf(activePreset.cityName) }
     var state by remember { mutableStateOf(activePreset.state) }
     var pincode by remember { mutableStateOf(activePreset.pincode) }
@@ -270,7 +271,9 @@ fun LocationPickerScreen(
         city = nearestPreset.cityName
         state = nearestPreset.state
         pincode = nearestPreset.pincode
-        landmark = nearestPreset.landmark
+        if (landmark.isBlank()) {
+            landmark = nearestPreset.landmark
+        }
     }
 
     Box(
@@ -290,9 +293,7 @@ fun LocationPickerScreen(
                         panOffsetY = 0f
                         zoomScale = 1.15f
                         activePreset = presetLocations.first()
-                        flatAndBuilding = activePreset.defaultBuilding
                         streetLocality = activePreset.localityName
-                        landmark = activePreset.landmark
                         city = activePreset.cityName
                         state = activePreset.state
                         pincode = activePreset.pincode
@@ -307,9 +308,7 @@ fun LocationPickerScreen(
                         currentLongitude = preset.longitude
                         panOffsetX = preset.initialPanX
                         panOffsetY = preset.initialPanY
-                        flatAndBuilding = preset.defaultBuilding
                         streetLocality = preset.localityName
-                        landmark = preset.landmark
                         city = preset.cityName
                         state = preset.state
                         pincode = preset.pincode
@@ -382,15 +381,17 @@ fun LocationPickerScreen(
                         currentLongitude = preset.longitude
                         panOffsetX = preset.initialPanX
                         panOffsetY = preset.initialPanY
-                        flatAndBuilding = preset.defaultBuilding
                         streetLocality = preset.localityName
-                        landmark = preset.landmark
                         city = preset.cityName
                         state = preset.state
                         pincode = preset.pincode
                     },
                     onConfirmClick = {
-                        currentStep = LocationPickerStep.FINAL_CONFIRM_CARD
+                        if (flatAndBuilding.isBlank()) {
+                            Toast.makeText(context, "Please enter your flat or building details", Toast.LENGTH_SHORT).show()
+                        } else {
+                            currentStep = LocationPickerStep.FINAL_CONFIRM_CARD
+                        }
                     },
                     onBackClick = {
                         currentStep = LocationPickerStep.INITIAL_PROMPT
@@ -401,7 +402,7 @@ fun LocationPickerScreen(
             LocationPickerStep.FINAL_CONFIRM_CARD -> {
                 FinalAddressConfirmationCard(
                     label = selectedLabel,
-                    flatAndBuilding = flatAndBuilding.ifBlank { "Flat 4B, Green Residency" },
+                    flatAndBuilding = flatAndBuilding.ifBlank { streetLocality },
                     floor = floorNumber,
                     streetLocality = streetLocality,
                     landmark = landmark,
@@ -415,7 +416,7 @@ fun LocationPickerScreen(
                     onConfirmAndContinue = {
                         viewModel.confirmMapLocation(
                             label = selectedLabel,
-                            flatAndBuilding = flatAndBuilding.ifBlank { "Flat 4B, Green Residency" },
+                            flatAndBuilding = flatAndBuilding.ifBlank { streetLocality },
                             floor = floorNumber,
                             streetAndLocality = streetLocality,
                             landmark = landmark,
@@ -519,7 +520,7 @@ private fun InitialLocationPrompt(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("search_delivery_area_input"),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(10.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CoralPrimary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -536,7 +537,7 @@ private fun InitialLocationPrompt(
                 .height(54.dp)
                 .testTag("use_current_location_button"),
             colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(10.dp)
         ) {
             if (isLocatingGps) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -562,7 +563,7 @@ private fun InitialLocationPrompt(
                 .fillMaxWidth()
                 .height(50.dp)
                 .testTag("enter_address_manually_button"),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(10.dp),
             border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralPrimary)
         ) {
             Icon(Icons.Filled.EditLocation, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(20.dp))
@@ -998,7 +999,7 @@ private fun InteractiveMapView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surface,
                         shadowElevation = 4.dp
                     ) {
@@ -1009,13 +1010,13 @@ private fun InteractiveMapView(
 
                     // Map Engine Switcher: [ 🗺️ Google Maps | ⚡ Radar Canvas ]
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surface,
                         shadowElevation = 4.dp
                     ) {
                         Row(modifier = Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (mapEngine == MapEngine.GOOGLE_MAPS) CoralPrimary else Color.Transparent,
                                 modifier = Modifier.clickable { mapEngine = MapEngine.GOOGLE_MAPS }
                             ) {
@@ -1028,7 +1029,7 @@ private fun InteractiveMapView(
                                 )
                             }
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (mapEngine == MapEngine.RADAR_CANVAS) CoralPrimary else Color.Transparent,
                                 modifier = Modifier.clickable { mapEngine = MapEngine.RADAR_CANVAS }
                             ) {
@@ -1045,7 +1046,7 @@ private fun InteractiveMapView(
 
                     if (mapEngine == MapEngine.GOOGLE_MAPS) {
                         Surface(
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSatelliteView) AmberSecondary else MaterialTheme.colorScheme.surface,
                             shadowElevation = 4.dp,
                             modifier = Modifier.clickable { isSatelliteView = !isSatelliteView }
@@ -1057,7 +1058,7 @@ private fun InteractiveMapView(
                     } else {
                         // Accuracy Indicator Badge
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.surface,
                             shadowElevation = 4.dp
                         ) {
@@ -1089,7 +1090,7 @@ private fun InteractiveMapView(
                     items(presetLocations) { preset ->
                         val isSelected = activePreset.localityName == preset.localityName
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surface,
                             shadowElevation = 2.dp,
                             modifier = Modifier.clickable { onSelectPresetChip(preset) }
@@ -1152,7 +1153,7 @@ private fun InteractiveMapView(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 4.dp,
                     modifier = Modifier
@@ -1165,7 +1166,7 @@ private fun InteractiveMapView(
                 }
 
                 Surface(
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 4.dp,
                     modifier = Modifier
@@ -1178,7 +1179,7 @@ private fun InteractiveMapView(
                 }
 
                 Surface(
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 6.dp,
                     modifier = Modifier
@@ -1278,12 +1279,12 @@ private fun InteractiveMapView(
                     value = flatAndBuilding,
                     onValueChange = onFlatChange,
                     label = { Text("House / Flat / Block / Building *") },
-                    placeholder = { Text("e.g. Flat 4B, Green Residency") },
+                    placeholder = { Text("Enter flat/house no. and building name") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("input_house_flat"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1300,9 +1301,9 @@ private fun InteractiveMapView(
                     items(floorList) { flr ->
                         val isSelected = floorNumber == flr
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.clickable { onFloorChange(flr) }
+                            modifier = Modifier.clickable { onFloorChange(if (isSelected) "" else flr) }
                         ) {
                             Text(
                                 text = flr,
@@ -1322,12 +1323,12 @@ private fun InteractiveMapView(
                     value = landmark,
                     onValueChange = onLandmarkChange,
                     label = { Text("Nearby Landmark (Optional)") },
-                    placeholder = { Text("e.g. Near City Centre Gate 2") },
+                    placeholder = { Text("e.g. Near Metro Station / Main Gate") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("input_landmark"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1344,7 +1345,7 @@ private fun InteractiveMapView(
                     listOf("Home", "Work", "Other").forEach { tag ->
                         val isSelected = selectedLabel == tag
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier
                                 .clickable { onLabelChange(tag) }
@@ -1375,7 +1376,7 @@ private fun InteractiveMapView(
                     items(instructionsList) { inst ->
                         val isSelected = selectedInstruction == inst
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) AmberSecondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
                             border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, AmberSecondary) else null,
                             modifier = Modifier.clickable { onInstructionChange(inst) }
@@ -1401,7 +1402,7 @@ private fun InteractiveMapView(
                         .height(52.dp)
                         .testTag("confirm_delivery_location_button"),
                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
                         text = "CONFIRM LOCATION & PROCEED ➔",
@@ -1439,7 +1440,7 @@ private fun FinalAddressConfirmationCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("deliver_here_confirmation_card"),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
@@ -1557,7 +1558,7 @@ private fun FinalAddressConfirmationCard(
                         .height(52.dp)
                         .testTag("confirm_and_continue_button"),
                     colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
                         text = "CONFIRM & CONTINUE",

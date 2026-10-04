@@ -92,7 +92,7 @@ fun AnalyticsDashboardScreen(viewModel: EcommerceViewModel) {
                 )
             }
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(6.dp),
                 color = GreenSuccess.copy(alpha = 0.15f)
             ) {
                 Row(

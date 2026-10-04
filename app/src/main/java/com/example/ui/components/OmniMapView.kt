@@ -314,7 +314,7 @@ fun OmniUniversalMapView(
             ) {
                 // Map Mode Selector Tabs: [ 🗺️ Streets | 🛰️ Satellite | ⚡ Radar ]
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     shadowElevation = 4.dp
                 ) {
@@ -347,7 +347,7 @@ fun OmniUniversalMapView(
                 // Launch External Google Maps App Button
                 if (showExternalMapButton) {
                     Surface(
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                         shadowElevation = 4.dp,
                         modifier = Modifier.clickable {
@@ -654,7 +654,7 @@ private fun MapModeButton(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(6.dp),
         color = if (selected) CoralPrimary else Color.Transparent,
         modifier = Modifier.clickable(onClick = onClick)
     ) {
