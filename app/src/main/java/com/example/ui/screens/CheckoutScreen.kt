@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -96,8 +98,17 @@ fun CheckoutScreen(
     val is10MinGlobal by viewModel.isTenMinuteDelivery.collectAsState()
     val selectedPartnerGlobal by viewModel.selectedDeliveryPartner.collectAsState()
     val indianPresetAddresses = viewModel.indianPresetAddresses
-
-    var address by remember(selectedAddressFromVm) { mutableStateOf(selectedAddressFromVm.fullFormattedAddress) }
+    val context = LocalContext.current
+    val isLocationConfirmed by viewModel.isLocationConfirmed.collectAsState()
+    var address by remember(selectedAddressFromVm, isLocationConfirmed) {
+        mutableStateOf(
+            if (isLocationConfirmed && selectedAddressFromVm.flatAndBuilding.isNotBlank()) {
+                selectedAddressFromVm.fullFormattedAddress
+            } else {
+                ""
+            }
+        )
+    }
     var isTenMinuteDelivery by remember { mutableStateOf(is10MinGlobal) }
     var selectedCarrier by remember { mutableStateOf(selectedPartnerGlobal) }
     var selectedPaymentMethod by remember { mutableStateOf("UPI") }
@@ -225,7 +236,7 @@ fun CheckoutScreen(
                             indianPresetAddresses.forEach { addr ->
                                 val isSelected = address.contains(addr.pincode)
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     color = if (isSelected) CoralPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
                                     border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, CoralPrimary) else null,
                                     modifier = Modifier.clickable {
@@ -249,7 +260,8 @@ fun CheckoutScreen(
                         OutlinedTextField(
                             value = address,
                             onValueChange = { address = it },
-                            label = { Text("Delivery Address", fontSize = 12.sp) },
+                            label = { Text("Complete Delivery Address *", fontSize = 12.sp) },
+                            placeholder = { Text("Enter house/flat no., building name, street, locality", fontSize = 12.sp) },
                             singleLine = false,
                             maxLines = 3,
                             shape = RoundedCornerShape(10.dp),
@@ -665,6 +677,10 @@ fun CheckoutScreen(
         ) {
             Button(
                 onClick = {
+                    if (address.isBlank()) {
+                        Toast.makeText(context, "Please enter your delivery address before checkout", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
                     val methodLabel = when (selectedPaymentMethod) {
                         "CREDIT_CARD" -> "Visa •••• ${cardNumber.takeLast(4)}"
                         "UPI" -> "UPI ($upiId)"
@@ -676,7 +692,7 @@ fun CheckoutScreen(
                     viewModel.initiateCheckout(methodLabel, address, requires3ds)
                 },
                 enabled = paymentState !is PaymentState.Processing,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
                 modifier = Modifier
                     .fillMaxWidth()

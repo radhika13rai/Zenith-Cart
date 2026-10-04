@@ -122,9 +122,12 @@ data class IndianAddress(
 ) {
     val fullFormattedAddress: String
         get() = buildString {
-            append(flatAndBuilding)
-            if (floor.isNotBlank()) append(", Floor $floor")
-            append(", $streetAndLocality")
+            if (flatAndBuilding.isNotBlank()) {
+                append(flatAndBuilding)
+                if (floor.isNotBlank()) append(", Floor $floor")
+                append(", ")
+            }
+            append(streetAndLocality)
             if (landmark.isNotBlank()) append(" (Near $landmark)")
             append(", $city, $state - $pincode")
         }

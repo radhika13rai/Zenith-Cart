@@ -192,8 +192,15 @@ fun HomeScreen(
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
+                                val isLocationConfirmed by viewModel.isLocationConfirmed.collectAsState()
                                 Text(
-                                    text = "${selectedAddress.flatAndBuilding}, ${selectedAddress.streetAndLocality} • ${selectedAddress.label}",
+                                    text = if (isLocationConfirmed && selectedAddress.flatAndBuilding.isNotBlank()) {
+                                        "${selectedAddress.flatAndBuilding}, ${selectedAddress.streetAndLocality} • ${selectedAddress.label}"
+                                    } else if (isLocationConfirmed) {
+                                        "${selectedAddress.streetAndLocality}, ${selectedAddress.city} • ${selectedAddress.label}"
+                                    } else {
+                                        "Tap to set delivery location on map"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -208,9 +215,9 @@ fun HomeScreen(
                             val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsState()
                             val userProfile by viewModel.userProfile.collectAsState()
 
-                            // User Login / Profile Pill
+                            // User Login / Profile
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = if (isUserLoggedIn) GreenSuccess.copy(alpha = 0.12f) else CoralPrimary.copy(alpha = 0.12f),
                                 modifier = Modifier
                                     .clickable {
@@ -246,7 +253,7 @@ fun HomeScreen(
 
                             // Currency Button
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant,
                                 modifier = Modifier
                                     .clickable { showCurrencyModal = true }
@@ -415,7 +422,7 @@ fun HomeScreen(
                     ) {
                         items(indianPartners) { partner ->
                             Surface(
-                                shape = RoundedCornerShape(18.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = if (partner.type.contains("10-MIN")) CoralPrimary.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant,
                                 border = if (partner.type.contains("10-MIN")) androidx.compose.foundation.BorderStroke(1.dp, CoralPrimary.copy(alpha = 0.35f)) else null
                             ) {
@@ -533,7 +540,7 @@ fun HomeScreen(
                         items(categories) { cat ->
                             val isSelected = cat == selectedCategory
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surface,
                                 border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                 modifier = Modifier
