@@ -239,6 +239,7 @@ EOF
         android:label="@string/app_name"
         android:roundIcon="${APP_ROUND_ICON}"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.MyApplication">
 
         <meta-data
