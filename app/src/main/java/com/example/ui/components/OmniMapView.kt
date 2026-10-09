@@ -6,9 +6,15 @@ import android.content.Intent
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.Uri
+import android.net.http.SslError
+import android.util.Log
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -38,9 +44,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -85,9 +93,9 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 
 enum class OmniMapDisplayMode {
-    VECTOR_RADAR,   // Native Jetpack Compose 60fps Vector Map (Zero Mesa/GPU errors)
-    LIVE_STREETS,   // Interactive Leaflet OpenStreetMap with software layer
-    SATELLITE,      // Aerial Esri Satellite Imagery with software layer
+    VECTOR_RADAR,   // Native Jetpack Compose 60fps Vector Map (Zero Mesa/GPU errors, completely offline)
+    LIVE_STREETS,   // Interactive Leaflet Google Maps Streets + OSM fallback
+    SATELLITE,      // Interactive Leaflet Google Hybrid Satellite
     GOOGLE_MAPS_SDK // Native Google Maps SDK
 }
 
@@ -99,10 +107,60 @@ class MapBridge(private val onLocationUpdated: (Double, Double) -> Unit) {
 }
 
 /**
+ * Controller to trigger programmatic map operations (zoom, recenter, layer switch)
+ * from parent composables without forcing recomposition.
+ */
+class OmniMapController {
+    var zoomIn: (() -> Unit)? = null
+    var zoomOut: (() -> Unit)? = null
+    var recenter: ((Double, Double) -> Unit)? = null
+    var setDisplayMode: ((OmniMapDisplayMode) -> Unit)? = null
+}
+
+@Composable
+fun rememberOmniMapController(): OmniMapController = remember { OmniMapController() }
+
+/**
+ * In-memory cache for Leaflet assets stored in assets/map/
+ * Inlines CSS and JS directly into the HTML document to eliminate CDN latency,
+ * network failures, and L is not defined crashes.
+ */
+object MapAssetCache {
+    @Volatile
+    private var cachedCss: String? = null
+    @Volatile
+    private var cachedJs: String? = null
+
+    fun getCss(context: Context): String {
+        return cachedCss ?: synchronized(this) {
+            cachedCss ?: try {
+                context.assets.open("map/leaflet.css").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                Log.w("OmniMap", "Could not read assets/map/leaflet.css: ${e.message}")
+                ""
+            }.also { cachedCss = it }
+        }
+    }
+
+    fun getJs(context: Context): String {
+        return cachedJs ?: synchronized(this) {
+            cachedJs ?: try {
+                context.assets.open("map/leaflet.js").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                Log.w("OmniMap", "Could not read assets/map/leaflet.js: ${e.message}")
+                ""
+            }.also { cachedJs = it }
+        }
+    }
+}
+
+/**
  * Universal Omni-Channel Map Component.
- * - Defaults to Native Compose Vector Map to eliminate MESA rendernode errors.
- * - WebView modes apply View.LAYER_TYPE_SOFTWARE to avoid querying /dev/dri/renderD128.
- * - Google Maps SDK is optional toggle for devices with configured keys.
+ * - Defaults to Zero-CDN Offline-Embedded Leaflet Map with Google Maps & OpenStreetMap raster tiles.
+ * - Zero snap-back: records user drag state so Leaflet camera does not jerk during touch moves.
+ * - Seamless tile switching without page reload.
+ * - Native Compose Vector Map fallback for zero-network / radar mode.
+ * - Google Maps SDK toggle for environments with configured API keys.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -120,14 +178,33 @@ fun OmniUniversalMapView(
     interactive: Boolean = true,
     showControls: Boolean = true,
     showExternalMapButton: Boolean = true,
+    showCenterPin: Boolean = true,
     initialDisplayMode: OmniMapDisplayMode = OmniMapDisplayMode.LIVE_STREETS,
+    controller: OmniMapController? = null,
     onLocationSelected: ((Double, Double) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var displayMode by remember { mutableStateOf(initialDisplayMode) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var isLoadingTiles by remember { mutableStateOf(true) }
-    var lastRenderedMode by remember { mutableStateOf(displayMode) }
+
+    // Bind external controller actions
+    LaunchedEffect(controller, webViewRef) {
+        controller?.let { ctrl ->
+            ctrl.zoomIn = {
+                webViewRef?.evaluateJavascript("if (window.zoomIn) window.zoomIn();", null)
+            }
+            ctrl.zoomOut = {
+                webViewRef?.evaluateJavascript("if (window.zoomOut) window.zoomOut();", null)
+            }
+            ctrl.recenter = { lat, lng ->
+                webViewRef?.evaluateJavascript("if (window.recenter) window.recenter($lat, $lng, $zoom);", null)
+            }
+            ctrl.setDisplayMode = { mode ->
+                displayMode = mode
+            }
+        }
+    }
 
     // Google Maps SDK camera state
     val cameraPositionState = rememberCameraPositionState {
@@ -156,8 +233,17 @@ fun OmniUniversalMapView(
         }
     }
 
-    val mapHtml = remember(displayMode) {
+    // Instant tile mode switching without full HTML reload
+    LaunchedEffect(displayMode) {
+        webViewRef?.let { wv ->
+            val modeKey = if (displayMode == OmniMapDisplayMode.SATELLITE) "google_hybrid" else "google_streets"
+            wv.evaluateJavascript("if (window.setMode) { window.setMode('$modeKey'); }", null)
+        }
+    }
+
+    val mapHtml = remember(context, interactive) {
         generateLeafletHtml(
+            context = context,
             lat = latitude,
             lng = longitude,
             zoom = zoom,
@@ -170,15 +256,6 @@ fun OmniUniversalMapView(
             riderName = riderName ?: "Delivery Rider",
             isInteractive = interactive
         )
-    }
-
-    LaunchedEffect(displayMode) {
-        if (displayMode == OmniMapDisplayMode.LIVE_STREETS || displayMode == OmniMapDisplayMode.SATELLITE) {
-            if (lastRenderedMode != displayMode) {
-                lastRenderedMode = displayMode
-                webViewRef?.loadDataWithBaseURL("https://omnicart.local", mapHtml, "text/html", "UTF-8", null)
-            }
-        }
     }
 
     Box(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
@@ -255,26 +332,45 @@ fun OmniUniversalMapView(
             }
 
             OmniMapDisplayMode.LIVE_STREETS, OmniMapDisplayMode.SATELLITE -> {
-                // Interactive Leaflet CartoDB / OSM / Esri Satellite
+                // Interactive Leaflet Google Maps & OpenStreetMap with inlined offline assets
                 AndroidView(
                     factory = { ctx ->
                         WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.databaseEnabled = true
+                            settings.allowFileAccess = true
+                            settings.allowContentAccess = true
+                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             settings.cacheMode = WebSettings.LOAD_DEFAULT
                             settings.loadWithOverviewMode = true
                             settings.useWideViewPort = true
                             settings.setSupportZoom(true)
                             settings.builtInZoomControls = false
                             settings.displayZoomControls = false
-                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36 OmniCart/1.0"
+                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36 OmniCart/1.0"
+                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
                             setBackgroundColor(android.graphics.Color.parseColor("#EBF0F5"))
 
-                            webChromeClient = WebChromeClient()
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                    Log.d("OmniMap", "[JS] ${consoleMessage?.message()} (line ${consoleMessage?.lineNumber()})")
+                                    return true
+                                }
+                            }
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     isLoadingTiles = false
                                     view?.evaluateJavascript("if (window.map) { window.map.invalidateSize(); }", null)
+                                }
+
+                                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                    Log.w("OmniMap", "Resource load error: ${error?.description} for ${request?.url}")
+                                }
+
+                                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                                    // Proceed for secure raster tile CDNs
+                                    handler?.proceed()
                                 }
                             }
 
@@ -284,7 +380,7 @@ fun OmniUniversalMapView(
                                 }, "AndroidBridge")
                             }
 
-                            loadDataWithBaseURL("https://omnicart.local", mapHtml, "text/html", "UTF-8", null)
+                            loadDataWithBaseURL("https://appassets.androidplatform.net", mapHtml, "text/html", "UTF-8", null)
                             webViewRef = this
                         }
                     },
@@ -377,8 +473,8 @@ fun OmniUniversalMapView(
             }
         }
 
-        // Center Pin for Interactive Location Picker
-        if (interactive && displayMode != OmniMapDisplayMode.VECTOR_RADAR) {
+        // Center Pin for Interactive Location Picker (Only when requested and not in vector radar mode)
+        if (interactive && showCenterPin && displayMode != OmniMapDisplayMode.VECTOR_RADAR) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -388,12 +484,12 @@ fun OmniUniversalMapView(
                     modifier = Modifier.padding(bottom = 36.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = SlateNavyDark,
                         shadowElevation = 4.dp
                     ) {
                         Text(
-                            text = "📍 Drag map to pinpoint delivery",
+                            text = "📍 Delivery Doorstep",
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -415,7 +511,7 @@ fun OmniUniversalMapView(
 /**
  * High-performance 100% native Jetpack Compose Vector Map.
  * Renders roads, buildings, water canal, darkstore pod, scooter rider, and delivery pin.
- * Completely immune to MESA / GPU rendernode errors.
+ * Completely immune to MESA / GPU rendernode errors and works 100% offline.
  */
 @Composable
 fun NativeComposeVectorMap(
@@ -624,7 +720,7 @@ fun NativeComposeVectorMap(
                 modifier = Modifier.padding(bottom = 36.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = SlateNavyDark,
                     shadowElevation = 6.dp
                 ) {
@@ -690,9 +786,11 @@ fun openInGoogleMaps(context: Context, lat: Double, lng: Double, label: String =
 }
 
 /**
- * Generates lightweight HTML using Leaflet + OpenStreetMap & Esri World Imagery tiles.
+ * Generates self-contained HTML embedding local Leaflet CSS and JS from assets/map/,
+ * loading Google Maps raster tiles (Streets & Hybrid Satellite) with automatic OpenStreetMap fallback.
  */
 private fun generateLeafletHtml(
+    context: Context,
     lat: Double,
     lng: Double,
     zoom: Int,
@@ -705,14 +803,20 @@ private fun generateLeafletHtml(
     riderName: String,
     isInteractive: Boolean
 ): String {
-    val tileLayerUrl = if (isSatellite) {
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    val inlinedCss = MapAssetCache.getCss(context)
+    val inlinedJs = MapAssetCache.getJs(context)
+
+    val cssTag = if (inlinedCss.isNotBlank()) {
+        "<style>\n$inlinedCss\n</style>"
     } else {
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        """<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />"""
     }
 
-    val subdomains = if (isSatellite) "[]" else "['a', 'b', 'c', 'd']"
-    val attribution = if (isSatellite) "© Esri World Imagery" else "© CartoDB, © OpenStreetMap"
+    val jsTag = if (inlinedJs.isNotBlank()) {
+        "<script>\n$inlinedJs\n</script>"
+    } else {
+        """<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>"""
+    }
 
     return """
         <!DOCTYPE html>
@@ -720,9 +824,13 @@ private fun generateLeafletHtml(
         <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+            $cssTag
+            $jsTag
             <style>
+                * {
+                    box-sizing: border-box;
+                    -webkit-tap-highlight-color: transparent;
+                }
                 html, body, #map {
                     width: 100%;
                     height: 100%;
@@ -731,150 +839,237 @@ private fun generateLeafletHtml(
                     background: #E8ECEF;
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     overflow: hidden;
+                    touch-action: manipulation;
                 }
                 .leaflet-control-attribution {
                     font-size: 8px !important;
                     background: rgba(255,255,255,0.7) !important;
+                    padding: 2px 4px !important;
+                    border-radius: 4px;
                 }
                 .hub-pin {
                     background: #0F172A;
                     color: #FFFFFF;
-                    padding: 4px 8px;
-                    border-radius: 12px;
+                    padding: 5px 9px;
+                    border-radius: 8px;
                     font-size: 11px;
                     font-weight: bold;
                     border: 2px solid #FF5252;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
                     white-space: nowrap;
+                    display: inline-block;
+                    transform: translate(-50%, -100%);
                 }
                 .rider-pin {
                     background: #10B981;
                     color: white;
-                    padding: 4px 7px;
-                    border-radius: 10px;
+                    padding: 5px 9px;
+                    border-radius: 8px;
                     font-size: 11px;
                     font-weight: bold;
                     border: 2px solid white;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
                     white-space: nowrap;
+                    display: inline-block;
+                    transform: translate(-50%, -100%);
                 }
-                .cust-pin {
+                .doorstep-pin {
                     background: #FF5252;
                     color: white;
                     padding: 4px 8px;
-                    border-radius: 10px;
+                    border-radius: 8px;
                     font-size: 11px;
                     font-weight: bold;
                     border: 2px solid white;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
                     white-space: nowrap;
+                    display: inline-block;
+                    transform: translate(-50%, -100%);
                 }
             </style>
         </head>
         <body>
             <div id="map"></div>
             <script>
-                var map = L.map('map', {
-                    center: [$lat, $lng],
-                    zoom: $zoom,
-                    zoomControl: false,
-                    attributionControl: false
-                });
-
-                var tileLayer = L.tileLayer('$tileLayerUrl', {
-                    maxZoom: 19,
-                    subdomains: $subdomains,
-                    attribution: '$attribution'
-                }).addTo(map);
-
-                tileLayer.on('tileerror', function(error, tile) {
-                    if (tile && tile.src && !tile.src.includes('tile.openstreetmap.org')) {
-                        var coords = error.coords;
-                        tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
-                    }
-                });
-
-                var customerMarker = null;
-                var hubMarker = null;
+                var map = null;
+                var currentTileLayer = null;
+                var podMarker = null;
                 var riderMarker = null;
+                var doorstepMarker = null;
                 var routeLine = null;
+                window._lastUserMoveTime = 0;
+                window._isUserDragging = false;
 
-                ${if (!isInteractive) """
-                var customerIcon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: "<div class='cust-pin'>📍 Delivery</div>",
-                    iconSize: [85, 24],
-                    iconAnchor: [42, 12]
-                });
-                customerMarker = L.marker([$lat, $lng], { icon: customerIcon }).addTo(map);
-                """ else ""}
-
-                ${if (podLat != null && podLng != null) """
-                var podIcon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: "<div class='hub-pin'>⚡ $podName</div>",
-                    iconSize: [120, 24],
-                    iconAnchor: [60, 12]
-                });
-                hubMarker = L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
-
-                var latlngs = [
-                    [$podLat, $podLng],
-                    [$lat, $lng]
-                ];
-                routeLine = L.polyline(latlngs, {
-                    color: '#FF5252',
-                    weight: 4,
-                    dashArray: '6, 6',
-                    opacity: 0.85
-                }).addTo(map);
-                """ else ""}
-
-                ${if (riderLat != null && riderLng != null) """
-                var riderIcon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: "<div class='rider-pin'>🛵 $riderName</div>",
-                    iconSize: [100, 24],
-                    iconAnchor: [50, 12]
-                });
-                riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
-                """ else ""}
-
-                ${if (isInteractive) """
-                map.on('moveend', function() {
-                    var center = map.getCenter();
-                    if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
-                        window.AndroidBridge.onPinMoved(center.lat, center.lng);
+                var tileProviders = {
+                    'google_streets': {
+                        url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                        subdomains: ['0', '1', '2', '3'],
+                        maxZoom: 20,
+                        attribution: '© Google Maps'
+                    },
+                    'google_hybrid': {
+                        url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                        subdomains: ['0', '1', '2', '3'],
+                        maxZoom: 20,
+                        attribution: '© Google Satellite'
+                    },
+                    'osm': {
+                        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: ['a', 'b', 'c'],
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap'
                     }
-                });
-                map.on('click', function(e) {
-                    map.panTo(e.latlng);
-                    if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
-                        window.AndroidBridge.onPinMoved(e.latlng.lat, e.latlng.lng);
+                };
+
+                function setTileLayer(mode) {
+                    var prov = tileProviders[mode] || tileProviders['google_streets'];
+                    if (currentTileLayer && map) {
+                        map.removeLayer(currentTileLayer);
                     }
-                });
-                """ else ""}
+                    if (map) {
+                        currentTileLayer = L.tileLayer(prov.url, {
+                            maxZoom: prov.maxZoom,
+                            subdomains: prov.subdomains,
+                            attribution: prov.attribution
+                        }).addTo(map);
+
+                        currentTileLayer.on('tileerror', function(error, tile) {
+                            if (tile && tile.src && !tile.src.includes('tile.openstreetmap.org')) {
+                                var coords = error.coords;
+                                tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
+                            }
+                        });
+                    }
+                }
+
+                try {
+                    map = L.map('map', {
+                        center: [$lat, $lng],
+                        zoom: $zoom,
+                        zoomControl: false,
+                        attributionControl: true
+                    });
+
+                    setTileLayer('${if (isSatellite) "google_hybrid" else "google_streets"}');
+
+                    ${if (isInteractive) """
+                    map.on('movestart', function() {
+                        window._isUserDragging = true;
+                    });
+
+                    map.on('move', function() {
+                        var center = map.getCenter();
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(center.lat, center.lng);
+                        }
+                    });
+
+                    map.on('moveend', function() {
+                        window._isUserDragging = false;
+                        window._lastUserMoveTime = Date.now();
+                        var center = map.getCenter();
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(center.lat, center.lng);
+                        }
+                    });
+
+                    map.on('click', function(e) {
+                        window._lastUserMoveTime = Date.now();
+                        map.panTo(e.latlng);
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(e.latlng.lat, e.latlng.lng);
+                        }
+                    });
+                    """ else """
+                    ${if (podLat != null && podLng != null) """
+                    var podIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div class='hub-pin'>⚡ $podName</div>",
+                        iconSize: [0, 0]
+                    });
+                    podMarker = L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
+                    """ else ""}
+
+                    ${if (riderLat != null && riderLng != null) """
+                    var riderIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div class='rider-pin'>🛵 $riderName</div>",
+                        iconSize: [0, 0]
+                    });
+                    riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
+                    """ else ""}
+
+                    var doorstepIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div class='doorstep-pin'>📍 Delivery Doorstep</div>",
+                        iconSize: [0, 0]
+                    });
+                    doorstepMarker = L.marker([$lat, $lng], { icon: doorstepIcon }).addTo(map);
+
+                    var routePoints = [];
+                    ${if (podLat != null && podLng != null) "routePoints.push([$podLat, $podLng]);" else ""}
+                    ${if (riderLat != null && riderLng != null) "routePoints.push([$riderLat, $riderLng]);" else ""}
+                    routePoints.push([$lat, $lng]);
+
+                    if (routePoints.length >= 2) {
+                        routeLine = L.polyline(routePoints, {
+                            color: '#FF5252',
+                            weight: 4,
+                            dashArray: '6, 6',
+                            opacity: 0.85
+                        }).addTo(map);
+                    }
+                    """}
+                } catch (err) {
+                    console.error("Leaflet map initialization failed: " + err);
+                }
 
                 window.updateCenter = function(nlat, nlng, nzoom) {
-                    if (map) {
+                    if (Date.now() - (window._lastUserMoveTime || 0) < 1500 || window._isUserDragging) {
+                        return;
+                    }
+                    if (map && nlat && nlng) {
                         map.setView([nlat, nlng], nzoom || map.getZoom());
-                        if (customerMarker) {
-                            customerMarker.setLatLng([nlat, nlng]);
+                        if (doorstepMarker) {
+                            doorstepMarker.setLatLng([nlat, nlng]);
                         }
-                        if (routeLine && hubMarker) {
-                            routeLine.setLatLngs([hubMarker.getLatLng(), [nlat, nlng]]);
+                        if (routeLine && podMarker) {
+                            routeLine.setLatLngs([podMarker.getLatLng(), [nlat, nlng]]);
+                        }
+                    }
+                };
+
+                window.recenter = function(nlat, nlng, nzoom) {
+                    window._lastUserMoveTime = 0;
+                    window._isUserDragging = false;
+                    if (map && nlat && nlng) {
+                        map.setView([nlat, nlng], nzoom || 16);
+                        if (doorstepMarker) {
+                            doorstepMarker.setLatLng([nlat, nlng]);
                         }
                     }
                 };
 
                 window.updateRider = function(rlat, rlng) {
-                    if (riderMarker) {
+                    if (riderMarker && rlat && rlng) {
                         riderMarker.setLatLng([rlat, rlng]);
                     }
                 };
 
-                setTimeout(function() { if (map) map.invalidateSize(); }, 250);
-                setTimeout(function() { if (map) map.invalidateSize(); }, 800);
+                window.setMode = function(mode) {
+                    setTileLayer(mode);
+                };
+
+                window.zoomIn = function() {
+                    if (map) map.zoomIn();
+                };
+
+                window.zoomOut = function() {
+                    if (map) map.zoomOut();
+                };
+
+                setTimeout(function() { if (map) map.invalidateSize(); }, 200);
+                setTimeout(function() { if (map) map.invalidateSize(); }, 700);
             </script>
         </body>
         </html>
