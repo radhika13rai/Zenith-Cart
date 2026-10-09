@@ -19,6 +19,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.example.ui.components.OmniMapDisplayMode
 import com.example.ui.components.OmniUniversalMapView
 import com.example.ui.components.openInGoogleMaps
+import com.example.ui.components.rememberOmniMapController
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -766,6 +767,7 @@ private fun InteractiveMapView(
     val context = LocalContext.current
     var mapEngine by remember { mutableStateOf(MapEngine.GOOGLE_MAPS) }
     var isSatelliteView by remember { mutableStateOf(false) }
+    val mapController = rememberOmniMapController()
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(currentLatitude, currentLongitude), 16.5f)
@@ -823,9 +825,11 @@ private fun InteractiveMapView(
                     podLng = activePreset.podLng,
                     podName = activePreset.darkstorePod,
                     interactive = true,
-                    showControls = true,
-                    showExternalMapButton = true,
-                    initialDisplayMode = OmniMapDisplayMode.LIVE_STREETS,
+                    showControls = false,
+                    showExternalMapButton = false,
+                    showCenterPin = false,
+                    initialDisplayMode = if (isSatelliteView) OmniMapDisplayMode.SATELLITE else OmniMapDisplayMode.LIVE_STREETS,
+                    controller = mapController,
                     onLocationSelected = { lat, lng ->
                         onLocationMoved(lat, lng)
                     }
@@ -1049,7 +1053,10 @@ private fun InteractiveMapView(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isSatelliteView) AmberSecondary else MaterialTheme.colorScheme.surface,
                             shadowElevation = 4.dp,
-                            modifier = Modifier.clickable { isSatelliteView = !isSatelliteView }
+                            modifier = Modifier.clickable {
+                                isSatelliteView = !isSatelliteView
+                                mapController.setDisplayMode?.invoke(if (isSatelliteView) OmniMapDisplayMode.SATELLITE else OmniMapDisplayMode.LIVE_STREETS)
+                            }
                         ) {
                             Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
                                 Text(if (isSatelliteView) "🛰️" else "🗺️", fontSize = 13.sp)
@@ -1093,7 +1100,10 @@ private fun InteractiveMapView(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isSelected) CoralPrimary else MaterialTheme.colorScheme.surface,
                             shadowElevation = 2.dp,
-                            modifier = Modifier.clickable { onSelectPresetChip(preset) }
+                            modifier = Modifier.clickable {
+                                onSelectPresetChip(preset)
+                                mapController.recenter?.invoke(preset.latitude, preset.longitude)
+                            }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1158,7 +1168,10 @@ private fun InteractiveMapView(
                     shadowElevation = 4.dp,
                     modifier = Modifier
                         .size(40.dp)
-                        .clickable { onZoomIn() }
+                        .clickable {
+                            onZoomIn()
+                            mapController.zoomIn?.invoke()
+                        }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Add, contentDescription = "Zoom In", tint = CoralPrimary)
@@ -1171,7 +1184,10 @@ private fun InteractiveMapView(
                     shadowElevation = 4.dp,
                     modifier = Modifier
                         .size(40.dp)
-                        .clickable { onZoomOut() }
+                        .clickable {
+                            onZoomOut()
+                            mapController.zoomOut?.invoke()
+                        }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Remove, contentDescription = "Zoom Out", tint = CoralPrimary)
@@ -1184,7 +1200,10 @@ private fun InteractiveMapView(
                     shadowElevation = 6.dp,
                     modifier = Modifier
                         .size(44.dp)
-                        .clickable { onRecenterGps() }
+                        .clickable {
+                            onRecenterGps()
+                            mapController.recenter?.invoke(activePreset.latitude, activePreset.longitude)
+                        }
                         .testTag("map_recenter_button")
                 ) {
                     Box(contentAlignment = Alignment.Center) {
