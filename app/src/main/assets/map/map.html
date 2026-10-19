@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="stylesheet" href="leaflet.css" />
+    <script src="leaflet.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #E8ECEF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+        .leaflet-control-attribution {
+            font-size: 9px !important;
+            background: rgba(255,255,255,0.75) !important;
+            padding: 2px 5px !important;
+            border-radius: 4px;
+        }
+        .hub-pin {
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 5px 9px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 2px solid #FF5252;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+            white-space: nowrap;
+            display: inline-block;
+            transform: translate(-50%, -100%);
+        }
+        .rider-pin {
+            background: #10B981;
+            color: white;
+            padding: 5px 9px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 2px solid white;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+            white-space: nowrap;
+            display: inline-block;
+            transform: translate(-50%, -100%);
+        }
+        .doorstep-pin {
+            background: #FF5252;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            white-space: nowrap;
+            display: inline-block;
+            transform: translate(-50%, -100%);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script>
+        var map = null;
+        var currentTileLayer = null;
+        var podMarker = null;
+        var riderMarker = null;
+        var doorstepMarker = null;
+        var routePolyline = null;
+        var currentMode = 'google_streets';
+        var isInteractiveMode = true;
+        var centerLat = 22.5855;
+        var centerLng = 88.4144;
+
+        var tileProviders = {
+            'google_streets': {
+                url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                subdomains: ['0', '1', '2', '3'],
+                maxZoom: 20,
+                attribution: '© Google Maps'
+            },
+            'google_hybrid': {
+                url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                subdomains: ['0', '1', '2', '3'],
+                maxZoom: 20,
+                attribution: '© Google Satellite'
+            },
+            'osm': {
+                url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: ['a', 'b', 'c'],
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            },
+            'cartodb': {
+                url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                subdomains: ['a', 'b', 'c', 'd'],
+                maxZoom: 19,
+                attribution: '© CartoDB'
+            }
+        };
+
+        function setTileLayer(mode) {
+            currentMode = mode || 'google_streets';
+            var prov = tileProviders[currentMode] || tileProviders['google_streets'];
+
+            if (currentTileLayer && map) {
+                map.removeLayer(currentTileLayer);
+            }
+
+            if (map) {
+                currentTileLayer = L.tileLayer(prov.url, {
+                    maxZoom: prov.maxZoom,
+                    subdomains: prov.subdomains,
+                    attribution: prov.attribution
+                }).addTo(map);
+            }
+        }
+
+        function initMap(lat, lng, zoom, podLat, podLng, podName, riderLat, riderLng, riderName, mode, isInteractive) {
+            centerLat = lat || 22.5855;
+            centerLng = lng || 88.4144;
+            var initialZoom = zoom || 16;
+            isInteractiveMode = (isInteractive !== false);
+
+            if (!map) {
+                map = L.map('map', {
+                    center: [centerLat, centerLng],
+                    zoom: initialZoom,
+                    zoomControl: false,
+                    attributionControl: true
+                });
+
+                setTileLayer(mode || 'google_streets');
+
+                if (isInteractiveMode) {
+                    map.on('move', function() {
+                        var center = map.getCenter();
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(center.lat, center.lng);
+                        }
+                    });
+
+                    map.on('moveend', function() {
+                        var center = map.getCenter();
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(center.lat, center.lng);
+                        }
+                    });
+
+                    map.on('click', function(e) {
+                        map.panTo(e.latlng);
+                        if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
+                            window.AndroidBridge.onPinMoved(e.latlng.lat, e.latlng.lng);
+                        }
+                    });
+                }
+            } else {
+                map.setView([centerLat, centerLng], initialZoom);
+                setTileLayer(mode);
+            }
+
+            // Only render overlays in non-interactive / order tracking views
+            if (!isInteractiveMode) {
+                renderOverlays(podLat, podLng, podName, riderLat, riderLng, riderName, centerLat, centerLng);
+            }
+        }
+
+        function renderOverlays(pLat, pLng, pName, rLat, rLng, rName, dLat, dLng) {
+            if (podMarker) map.removeLayer(podMarker);
+            if (riderMarker) map.removeLayer(riderMarker);
+            if (doorstepMarker) map.removeLayer(doorstepMarker);
+            if (routePolyline) map.removeLayer(routePolyline);
+
+            var waypoints = [];
+
+            // 1. Darkstore Pod Marker
+            if (pLat !== null && pLat !== undefined && pLng !== null && pLng !== undefined) {
+                var podIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div class='hub-pin'>⚡ " + (pName || "Darkstore Pod") + "</div>",
+                    iconSize: [0, 0]
+                });
+                podMarker = L.marker([pLat, pLng], { icon: podIcon }).addTo(map);
+                waypoints.push([pLat, pLng]);
+            }
+
+            // 2. Live Rider Marker
+            if (rLat !== null && rLat !== undefined && rLng !== null && rLng !== undefined) {
+                var riderIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div class='rider-pin'>🛵 " + (rName || "Delivery Partner") + "</div>",
+                    iconSize: [0, 0]
+                });
+                riderMarker = L.marker([rLat, rLng], { icon: riderIcon }).addTo(map);
+                waypoints.push([rLat, rLng]);
+            }
+
+            // 3. Customer Doorstep Marker
+            if (dLat !== null && dLat !== undefined && dLng !== null && dLng !== undefined) {
+                var doorstepIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div class='doorstep-pin'>📍 Delivery Doorstep</div>",
+                    iconSize: [0, 0]
+                });
+                doorstepMarker = L.marker([dLat, dLng], { icon: doorstepIcon }).addTo(map);
+                waypoints.push([dLat, dLng]);
+            }
+
+            // 4. Live Fulfillment Route Polyline
+            if (waypoints.length >= 2) {
+                routePolyline = L.polyline(waypoints, {
+                    color: '#FF5252',
+                    weight: 4,
+                    dashArray: '6, 6',
+                    opacity: 0.85
+                }).addTo(map);
+            }
+        }
+
+        window.updateMap = function(nlat, nlng, nzoom, pLat, pLng, pName, rLat, rLng, rName) {
+            centerLat = nlat || centerLat;
+            centerLng = nlng || centerLng;
+            if (map && nlat && nlng) {
+                map.setView([nlat, nlng], nzoom || map.getZoom());
+            }
+            if (!isInteractiveMode) {
+                renderOverlays(pLat, pLng, pName, rLat, rLng, rName, centerLat, centerLng);
+            }
+        };
+
+        window.setMode = function(mode) {
+            setTileLayer(mode);
+        };
+
+        window.zoomIn = function() {
+            if (map) map.zoomIn();
+        };
+
+        window.zoomOut = function() {
+            if (map) map.zoomOut();
+        };
+
+        window.recenter = function(lat, lng, zoom) {
+            centerLat = lat || centerLat;
+            centerLng = lng || centerLng;
+            if (map) {
+                map.setView([centerLat, centerLng], zoom || 16);
+            }
+        };
+    </script>
+</body>
+</html>
