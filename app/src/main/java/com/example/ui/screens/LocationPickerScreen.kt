@@ -729,10 +729,6 @@ private fun InitialLocationPrompt(
     }
 }
 
-enum class MapEngine {
-    GOOGLE_MAPS,
-    RADAR_CANVAS
-}
 
 @Composable
 private fun InteractiveMapView(
@@ -765,7 +761,6 @@ private fun InteractiveMapView(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
-    var mapEngine by remember { mutableStateOf(MapEngine.GOOGLE_MAPS) }
     var isSatelliteView by remember { mutableStateOf(false) }
     val mapController = rememberOmniMapController()
 
@@ -784,27 +779,6 @@ private fun InteractiveMapView(
         } catch (_: Exception) {}
     }
 
-    // Pulse animation for GPS and Darkstore Pod
-    val infiniteTransition = rememberInfiniteTransition(label = "MapPulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 0.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseAlpha"
-    )
-    val pulseRadius by infiniteTransition.animateFloat(
-        initialValue = 35f,
-        targetValue = 75f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "PulseRadius"
-    )
-
     Column(modifier = Modifier.fillMaxSize()) {
         // TOP 50% INTERACTIVE MAP CANVAS
         Box(
@@ -814,182 +788,25 @@ private fun InteractiveMapView(
                 .background(Color(0xFFF3F5F3))
                 .testTag("interactive_delivery_map")
         ) {
-            if (mapEngine == MapEngine.GOOGLE_MAPS) {
-                // Real Live Embedded Map with Street, Satellite and Google SDK modes
-                OmniUniversalMapView(
-                    modifier = Modifier.fillMaxSize().testTag("universal_delivery_map"),
-                    latitude = currentLatitude,
-                    longitude = currentLongitude,
-                    zoom = 16,
-                    podLat = activePreset.podLat,
-                    podLng = activePreset.podLng,
-                    podName = activePreset.darkstorePod,
-                    interactive = true,
-                    showControls = false,
-                    showExternalMapButton = false,
-                    showCenterPin = false,
-                    initialDisplayMode = if (isSatelliteView) OmniMapDisplayMode.SATELLITE else OmniMapDisplayMode.LIVE_STREETS,
-                    controller = mapController,
-                    onLocationSelected = { lat, lng ->
-                        onLocationMoved(lat, lng)
-                    }
-                )
-            } else {
-                // High-detail dynamic vector map with roads, buildings, greenery, and pod
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                onMapDragged(dragAmount.x, dragAmount.y)
-                                onLocationMoved(
-                                    activePreset.latitude - (panOffsetY * 0.00005),
-                                    activePreset.longitude + (panOffsetX * 0.00005)
-                                )
-                            }
-                        }
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val canvasW = size.width
-                        val canvasH = size.height
-
-                        val centerX = canvasW / 2f + panOffsetX
-                        val centerY = canvasH / 2f + panOffsetY
-
-                        // 1. Water Body / Canal
-                        drawCircle(
-                            color = Color(0xFFCBE5ED),
-                            radius = 220f * zoomScale,
-                            center = Offset(centerX - 240f * zoomScale, centerY - 180f * zoomScale)
-                        )
-
-                        // 2. City Park & Greenery
-                        drawRect(
-                            color = Color(0xFFD7EAD7),
-                            topLeft = Offset(centerX + 120f * zoomScale, centerY - 280f * zoomScale),
-                            size = Size(320f * zoomScale, 200f * zoomScale)
-                        )
-                        drawRect(
-                            color = Color(0xFFD7EAD7),
-                            topLeft = Offset(centerX - 360f * zoomScale, centerY + 140f * zoomScale),
-                            size = Size(200f * zoomScale, 180f * zoomScale)
-                        )
-
-                        // 3. Residential & Commercial Building Blocks (3D Shaded Footprints)
-                        val buildingColor = Color(0xFFE4E8E5)
-                        val buildingBorder = Color(0xFFD2D8D4)
-
-                        val blockCoords = listOf(
-                            Pair(-200f, -80f),
-                            Pair(-100f, -80f),
-                            Pair(100f, -80f),
-                            Pair(200f, -80f),
-                            Pair(-200f, 100f),
-                            Pair(-100f, 100f),
-                            Pair(100f, 100f),
-                            Pair(200f, 100f),
-                            Pair(60f, 220f),
-                            Pair(-160f, 220f)
-                        )
-
-                        blockCoords.forEach { (bx, by) ->
-                            val bLeft = centerX + bx * zoomScale
-                            val bTop = centerY + by * zoomScale
-                            val bWidth = 75f * zoomScale
-                            val bHeight = 65f * zoomScale
-
-                            drawRect(color = buildingBorder, topLeft = Offset(bLeft + 3f, bTop + 3f), size = Size(bWidth, bHeight))
-                            drawRect(color = buildingColor, topLeft = Offset(bLeft, bTop), size = Size(bWidth, bHeight))
-                        }
-
-                        // 4. Road Networks (White Boulevard with subtle gray border lines)
-                        val mainRoadWidth = 36f * zoomScale
-                        val secondaryRoadWidth = 20f * zoomScale
-
-                        // Main Central Boulevard (Horizontal)
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(0f, centerY),
-                            end = Offset(canvasW, centerY),
-                            strokeWidth = mainRoadWidth
-                        )
-                        // Center Line
-                        drawLine(
-                            color = Color(0xFFE2E2E2),
-                            start = Offset(0f, centerY),
-                            end = Offset(canvasW, centerY),
-                            strokeWidth = 2f
-                        )
-
-                        // Main Cross Avenue (Vertical)
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, canvasH),
-                            strokeWidth = mainRoadWidth
-                        )
-                        drawLine(
-                            color = Color(0xFFE2E2E2),
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, canvasH),
-                            strokeWidth = 2f
-                        )
-
-                        // Secondary Ring Streets
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(0f, centerY - 150f * zoomScale),
-                            end = Offset(canvasW, centerY - 150f * zoomScale),
-                            strokeWidth = secondaryRoadWidth
-                        )
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(0f, centerY + 180f * zoomScale),
-                            end = Offset(canvasW, centerY + 180f * zoomScale),
-                            strokeWidth = secondaryRoadWidth
-                        )
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(centerX - 180f * zoomScale, 0f),
-                            end = Offset(centerX - 180f * zoomScale, canvasH),
-                            strokeWidth = secondaryRoadWidth
-                        )
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(centerX + 180f * zoomScale, 0f),
-                            end = Offset(centerX + 180f * zoomScale, canvasH),
-                            strokeWidth = secondaryRoadWidth
-                        )
-
-                        // 5. Darkstore Pod Micro-Fulfillment Hub (With Animated Radar Wave)
-                        val podPos = Offset(centerX - 150f * zoomScale, centerY - 150f * zoomScale)
-                        drawCircle(color = AmberSecondary.copy(alpha = pulseAlpha), radius = pulseRadius * zoomScale, center = podPos)
-                        drawCircle(color = SlateNavyDark, radius = 24f * zoomScale, center = podPos)
-                        drawCircle(color = AmberSecondary, radius = 10f * zoomScale, center = podPos)
-
-                        // 6. Native Canvas Text Labels for Roads and Pod
-                        drawIntoCanvas { canvas ->
-                            val paint = Paint().apply {
-                                color = android.graphics.Color.DKGRAY
-                                textSize = 28f * zoomScale.coerceIn(0.8f, 1.4f)
-                                typeface = Typeface.DEFAULT_BOLD
-                                isAntiAlias = true
-                            }
-                            val podPaint = Paint().apply {
-                                color = android.graphics.Color.rgb(18, 28, 45)
-                                textSize = 26f * zoomScale.coerceIn(0.8f, 1.4f)
-                                typeface = Typeface.DEFAULT_BOLD
-                                isAntiAlias = true
-                            }
-
-                            canvas.nativeCanvas.drawText("Central Boulevard", 40f, centerY - 24f * zoomScale, paint)
-                            canvas.nativeCanvas.drawText("Metro Ring Road", centerX + 24f * zoomScale, 100f, paint)
-                            canvas.nativeCanvas.drawText("⚡ Pod #02 (0.7 km away)", podPos.x - 70f, podPos.y - 32f, podPaint)
-                        }
-                    }
+            // Real Live Embedded Map with Street, Satellite and Google SDK modes
+            OmniUniversalMapView(
+                modifier = Modifier.fillMaxSize().testTag("universal_delivery_map"),
+                latitude = currentLatitude,
+                longitude = currentLongitude,
+                zoom = 16,
+                podLat = activePreset.podLat,
+                podLng = activePreset.podLng,
+                podName = activePreset.darkstorePod,
+                interactive = true,
+                showControls = false,
+                showExternalMapButton = false,
+                showCenterPin = false,
+                initialDisplayMode = if (isSatelliteView) OmniMapDisplayMode.SATELLITE else OmniMapDisplayMode.LIVE_STREETS,
+                controller = mapController,
+                onLocationSelected = { lat, lng ->
+                    onLocationMoved(lat, lng)
                 }
-            }
+            )
 
             // Top Header: Back button, Accuracy Indicator & City Quick-Switch Chips
             Column(
@@ -1012,7 +829,7 @@ private fun InteractiveMapView(
                         }
                     }
 
-                    // Map Engine Switcher: [ 🗺️ Google Maps | ⚡ Radar Canvas ]
+                    // Map Style Switcher: [ 🗺️ Streets | 🛰️ Satellite ]
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surface,
@@ -1021,71 +838,61 @@ private fun InteractiveMapView(
                         Row(modifier = Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (mapEngine == MapEngine.GOOGLE_MAPS) CoralPrimary else Color.Transparent,
-                                modifier = Modifier.clickable { mapEngine = MapEngine.GOOGLE_MAPS }
+                                color = if (!isSatelliteView) CoralPrimary else Color.Transparent,
+                                modifier = Modifier.clickable {
+                                    isSatelliteView = false
+                                    mapController.setDisplayMode?.invoke(OmniMapDisplayMode.LIVE_STREETS)
+                                }
                             ) {
                                 Text(
-                                    text = "🗺️ Live Map",
+                                    text = "🗺️ Streets",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (mapEngine == MapEngine.GOOGLE_MAPS) Color.White else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    color = if (!isSatelliteView) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                 )
                             }
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (mapEngine == MapEngine.RADAR_CANVAS) CoralPrimary else Color.Transparent,
-                                modifier = Modifier.clickable { mapEngine = MapEngine.RADAR_CANVAS }
+                                color = if (isSatelliteView) CoralPrimary else Color.Transparent,
+                                modifier = Modifier.clickable {
+                                    isSatelliteView = true
+                                    mapController.setDisplayMode?.invoke(OmniMapDisplayMode.SATELLITE)
+                                }
                             ) {
                                 Text(
-                                    text = "⚡ Radar",
+                                    text = "🛰️ Satellite",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (mapEngine == MapEngine.RADAR_CANVAS) Color.White else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    color = if (isSatelliteView) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                 )
                             }
                         }
                     }
 
-                    if (mapEngine == MapEngine.GOOGLE_MAPS) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSatelliteView) AmberSecondary else MaterialTheme.colorScheme.surface,
-                            shadowElevation = 4.dp,
-                            modifier = Modifier.clickable {
-                                isSatelliteView = !isSatelliteView
-                                mapController.setDisplayMode?.invoke(if (isSatelliteView) OmniMapDisplayMode.SATELLITE else OmniMapDisplayMode.LIVE_STREETS)
-                            }
+                    // Accuracy Indicator Badge
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 4.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                                Text(if (isSatelliteView) "🛰️" else "🗺️", fontSize = 13.sp)
-                            }
-                        }
-                    } else {
-                        // Accuracy Indicator Badge
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            shadowElevation = 4.dp
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(GreenSuccess, CircleShape)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "±4m",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GreenSuccess
-                                )
-                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(GreenSuccess, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "±4m",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GreenSuccess
+                            )
                         }
                     }
                 }
