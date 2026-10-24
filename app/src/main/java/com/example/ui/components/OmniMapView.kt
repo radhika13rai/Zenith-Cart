@@ -236,7 +236,7 @@ fun OmniUniversalMapView(
     // Instant tile mode switching without full HTML reload
     LaunchedEffect(displayMode) {
         webViewRef?.let { wv ->
-            val modeKey = if (displayMode == OmniMapDisplayMode.SATELLITE) "google_hybrid" else "google_streets"
+            val modeKey = if (displayMode == OmniMapDisplayMode.SATELLITE) "satellite" else "streets"
             wv.evaluateJavascript("if (window.setMode) { window.setMode('$modeKey'); }", null)
         }
     }
@@ -341,6 +341,8 @@ fun OmniUniversalMapView(
                             settings.databaseEnabled = true
                             settings.allowFileAccess = true
                             settings.allowContentAccess = true
+                            settings.allowFileAccessFromFileURLs = true
+                            settings.allowUniversalAccessFromFileURLs = true
                             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             settings.cacheMode = WebSettings.LOAD_DEFAULT
                             settings.loadWithOverviewMode = true
@@ -380,7 +382,18 @@ fun OmniUniversalMapView(
                                 }, "AndroidBridge")
                             }
 
-                            loadDataWithBaseURL("https://appassets.androidplatform.net", mapHtml, "text/html", "UTF-8", null)
+                            val encodedPodName = java.net.URLEncoder.encode(podName ?: "Darkstore Pod", "UTF-8")
+                            val encodedRiderName = java.net.URLEncoder.encode(riderName ?: "Delivery Partner", "UTF-8")
+                            val modeParam = if (displayMode == OmniMapDisplayMode.SATELLITE) "satellite" else "streets"
+                            val mapUrl = "file:///android_asset/map/map.html?lat=$latitude&lng=$longitude&zoom=$zoom&mode=$modeParam&interactive=$interactive&showCenterPin=$showCenterPin" +
+                                (if (podLat != null && podLng != null) "&podLat=$podLat&podLng=$podLng&podName=$encodedPodName" else "") +
+                                (if (riderLat != null && riderLng != null) "&riderLat=$riderLat&riderLng=$riderLng&riderName=$encodedRiderName" else "")
+
+                            try {
+                                loadUrl(mapUrl)
+                            } catch (_: Exception) {
+                                loadDataWithBaseURL("file:///android_asset/map/", mapHtml, "text/html", "UTF-8", null)
+                            }
                             webViewRef = this
                         }
                     },
@@ -408,7 +421,7 @@ fun OmniUniversalMapView(
                     .padding(8.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                // Map Mode Selector Tabs: [ 🗺️ Streets | 🛰️ Satellite | ⚡ Radar ]
+                // Map Mode Selector Tabs: [ 🗺️ Streets | 🛰️ Satellite ]
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -428,12 +441,6 @@ fun OmniUniversalMapView(
                             title = "🛰️ Satellite",
                             selected = displayMode == OmniMapDisplayMode.SATELLITE,
                             onClick = { displayMode = OmniMapDisplayMode.SATELLITE }
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        MapModeButton(
-                            title = "⚡ Radar",
-                            selected = displayMode == OmniMapDisplayMode.VECTOR_RADAR,
-                            onClick = { displayMode = OmniMapDisplayMode.VECTOR_RADAR }
                         )
                     }
                 }
@@ -901,11 +908,23 @@ private fun generateLeafletHtml(
                 window._isUserDragging = false;
 
                 var tileProviders = {
+                    'streets': {
+                        url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                        subdomains: ['a', 'b', 'c', 'd'],
+                        maxZoom: 20,
+                        attribution: '© OpenStreetMap © CARTO'
+                    },
                     'google_streets': {
                         url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                         subdomains: ['0', '1', '2', '3'],
                         maxZoom: 20,
                         attribution: '© Google Maps'
+                    },
+                    'satellite': {
+                        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                        subdomains: [],
+                        maxZoom: 19,
+                        attribution: '© Esri Satellite'
                     },
                     'google_hybrid': {
                         url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
@@ -922,7 +941,7 @@ private fun generateLeafletHtml(
                 };
 
                 function setTileLayer(mode) {
-                    var prov = tileProviders[mode] || tileProviders['google_streets'];
+                    var prov = tileProviders[mode] || tileProviders['streets'];
                     if (currentTileLayer && map) {
                         map.removeLayer(currentTileLayer);
                     }
@@ -933,10 +952,16 @@ private fun generateLeafletHtml(
                             attribution: prov.attribution
                         }).addTo(map);
 
-                        currentTileLayer.on('tileerror', function(error, tile) {
-                            if (tile && tile.src && !tile.src.includes('tile.openstreetmap.org')) {
+                        currentTileLayer.on('tileerror', function(error) {
+                            if (error && error.tile) {
                                 var coords = error.coords;
-                                tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
+                                var currentSrc = error.tile.src || '';
+                                if (!currentSrc.includes('google.com')) {
+                                    var s = coords.x % 4;
+                                    error.tile.src = 'https://mt' + s + '.google.com/vt/lyrs=m&x=' + coords.x + '&y=' + coords.y + '&z=' + coords.z;
+                                } else if (!currentSrc.includes('openstreetmap.org')) {
+                                    error.tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
+                                }
                             }
                         });
                     }
@@ -950,7 +975,7 @@ private fun generateLeafletHtml(
                         attributionControl: true
                     });
 
-                    setTileLayer('${if (isSatellite) "google_hybrid" else "google_streets"}');
+                    setTileLayer('${if (isSatellite) "satellite" else "streets"}');
 
                     ${if (isInteractive) """
                     map.on('movestart', function() {
