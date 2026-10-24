@@ -9,18 +9,19 @@
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
         }
         html, body, #map {
             width: 100%;
             height: 100%;
-            margin: 0;
-            padding: 0;
             background: #E8ECEF;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
+            touch-action: manipulation;
         }
         .leaflet-control-attribution {
-            font-size: 9px !important;
+            font-size: 8px !important;
             background: rgba(255,255,255,0.75) !important;
             padding: 2px 5px !important;
             border-radius: 4px;
@@ -28,46 +29,95 @@
         .hub-pin {
             background: #0F172A;
             color: #FFFFFF;
-            padding: 5px 9px;
+            padding: 5px 10px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: 700;
             border: 2px solid #FF5252;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
             white-space: nowrap;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             transform: translate(-50%, -100%);
         }
         .rider-pin {
             background: #10B981;
             color: white;
-            padding: 5px 9px;
+            padding: 5px 10px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: 700;
             border: 2px solid white;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
             white-space: nowrap;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             transform: translate(-50%, -100%);
         }
         .doorstep-pin {
             background: #FF5252;
             color: white;
-            padding: 4px 8px;
-            border-radius: 10px;
+            padding: 5px 10px;
+            border-radius: 12px;
             font-size: 11px;
             font-weight: 700;
             border: 2px solid white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 10px rgba(255,82,82,0.4);
             white-space: nowrap;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             transform: translate(-50%, -100%);
+        }
+        /* Fixed Center Pin for Location Picker Screen */
+        .center-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            z-index: 1000;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .center-crosshair .pin-badge {
+            background: #0F172A;
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 8px;
+            margin-bottom: 2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        .center-crosshair .pin-svg {
+            width: 38px;
+            height: 38px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+        }
+        .center-crosshair .pin-shadow {
+            width: 14px;
+            height: 6px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 50%;
+            margin-top: -2px;
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <div id="centerPin" class="center-crosshair" style="display: none;">
+        <div class="pin-badge">📍 Delivery Doorstep</div>
+        <svg class="pin-svg" viewBox="0 0 24 24" fill="#FF5252">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        </svg>
+        <div class="pin-shadow"></div>
+    </div>
 
     <script>
         var map = null;
@@ -76,41 +126,54 @@
         var riderMarker = null;
         var doorstepMarker = null;
         var routePolyline = null;
-        var currentMode = 'google_streets';
+        var currentMode = 'streets';
         var isInteractiveMode = true;
         var centerLat = 22.5855;
         var centerLng = 88.4144;
+        window._lastUserMoveTime = 0;
+        window._isUserDragging = false;
 
         var tileProviders = {
+            'streets': {
+                name: 'CartoDB Voyager',
+                url: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                subdomains: ['a', 'b', 'c', 'd'],
+                maxZoom: 20,
+                attribution: '© OpenStreetMap © CARTO'
+            },
             'google_streets': {
+                name: 'Google Maps Streets',
                 url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                 subdomains: ['0', '1', '2', '3'],
                 maxZoom: 20,
                 attribution: '© Google Maps'
             },
+            'satellite': {
+                name: 'Esri World Imagery',
+                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                subdomains: [],
+                maxZoom: 19,
+                attribution: '© Esri Satellite'
+            },
             'google_hybrid': {
+                name: 'Google Satellite Hybrid',
                 url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
                 subdomains: ['0', '1', '2', '3'],
                 maxZoom: 20,
                 attribution: '© Google Satellite'
             },
             'osm': {
+                name: 'OpenStreetMap',
                 url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: ['a', 'b', 'c'],
                 maxZoom: 19,
                 attribution: '© OpenStreetMap'
-            },
-            'cartodb': {
-                url: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                subdomains: ['a', 'b', 'c', 'd'],
-                maxZoom: 19,
-                attribution: '© CartoDB'
             }
         };
 
         function setTileLayer(mode) {
-            currentMode = mode || 'google_streets';
-            var prov = tileProviders[currentMode] || tileProviders['google_streets'];
+            currentMode = mode || 'streets';
+            var prov = tileProviders[currentMode] || tileProviders['streets'];
 
             if (currentTileLayer && map) {
                 map.removeLayer(currentTileLayer);
@@ -122,10 +185,24 @@
                     subdomains: prov.subdomains,
                     attribution: prov.attribution
                 }).addTo(map);
+
+                // Seamless tile fallback
+                currentTileLayer.on('tileerror', function(error) {
+                    if (error && error.tile) {
+                        var coords = error.coords;
+                        var currentSrc = error.tile.src || '';
+                        if (!currentSrc.includes('google.com')) {
+                            var s = coords.x % 4;
+                            error.tile.src = 'https://mt' + s + '.google.com/vt/lyrs=m&x=' + coords.x + '&y=' + coords.y + '&z=' + coords.z;
+                        } else if (!currentSrc.includes('openstreetmap.org')) {
+                            error.tile.src = 'https://tile.openstreetmap.org/' + coords.z + '/' + coords.x + '/' + coords.y + '.png';
+                        }
+                    }
+                });
             }
         }
 
-        function initMap(lat, lng, zoom, podLat, podLng, podName, riderLat, riderLng, riderName, mode, isInteractive) {
+        function initMap(lat, lng, zoom, podLat, podLng, podName, riderLat, riderLng, riderName, mode, isInteractive, showCenterPin) {
             centerLat = lat || 22.5855;
             centerLng = lng || 88.4144;
             var initialZoom = zoom || 16;
@@ -139,9 +216,13 @@
                     attributionControl: true
                 });
 
-                setTileLayer(mode || 'google_streets');
+                setTileLayer(mode || 'streets');
 
                 if (isInteractiveMode) {
+                    map.on('movestart', function() {
+                        window._isUserDragging = true;
+                    });
+
                     map.on('move', function() {
                         var center = map.getCenter();
                         if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
@@ -150,6 +231,8 @@
                     });
 
                     map.on('moveend', function() {
+                        window._isUserDragging = false;
+                        window._lastUserMoveTime = Date.now();
                         var center = map.getCenter();
                         if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
                             window.AndroidBridge.onPinMoved(center.lat, center.lng);
@@ -157,6 +240,7 @@
                     });
 
                     map.on('click', function(e) {
+                        window._lastUserMoveTime = Date.now();
                         map.panTo(e.latlng);
                         if (window.AndroidBridge && window.AndroidBridge.onPinMoved) {
                             window.AndroidBridge.onPinMoved(e.latlng.lat, e.latlng.lng);
@@ -168,10 +252,15 @@
                 setTileLayer(mode);
             }
 
-            // Only render overlays in non-interactive / order tracking views
-            if (!isInteractiveMode) {
+            if (isInteractiveMode && showCenterPin) {
+                document.getElementById('centerPin').style.display = 'flex';
+            } else {
+                document.getElementById('centerPin').style.display = 'none';
                 renderOverlays(podLat, podLng, podName, riderLat, riderLng, riderName, centerLat, centerLng);
             }
+
+            setTimeout(function() { if (map) map.invalidateSize(); }, 150);
+            setTimeout(function() { if (map) map.invalidateSize(); }, 600);
         }
 
         function renderOverlays(pLat, pLng, pName, rLat, rLng, rName, dLat, dLng) {
@@ -182,7 +271,7 @@
 
             var waypoints = [];
 
-            // 1. Darkstore Pod Marker
+            // 1. Darkstore Hub Pod
             if (pLat !== null && pLat !== undefined && pLng !== null && pLng !== undefined) {
                 var podIcon = L.divIcon({
                     className: 'custom-div-icon',
@@ -193,7 +282,7 @@
                 waypoints.push([pLat, pLng]);
             }
 
-            // 2. Live Rider Marker
+            // 2. Delivery Partner Scooter
             if (rLat !== null && rLat !== undefined && rLng !== null && rLng !== undefined) {
                 var riderIcon = L.divIcon({
                     className: 'custom-div-icon',
@@ -204,7 +293,7 @@
                 waypoints.push([rLat, rLng]);
             }
 
-            // 3. Customer Doorstep Marker
+            // 3. Customer Delivery Doorstep Pin
             if (dLat !== null && dLat !== undefined && dLng !== null && dLng !== undefined) {
                 var doorstepIcon = L.divIcon({
                     className: 'custom-div-icon',
@@ -219,21 +308,41 @@
             if (waypoints.length >= 2) {
                 routePolyline = L.polyline(waypoints, {
                     color: '#FF5252',
-                    weight: 4,
-                    dashArray: '6, 6',
-                    opacity: 0.85
+                    weight: 5,
+                    dashArray: '8, 8',
+                    opacity: 0.9
                 }).addTo(map);
             }
         }
 
-        window.updateMap = function(nlat, nlng, nzoom, pLat, pLng, pName, rLat, rLng, rName) {
-            centerLat = nlat || centerLat;
-            centerLng = nlng || centerLng;
+        window.updateCenter = function(nlat, nlng, nzoom) {
+            if (Date.now() - (window._lastUserMoveTime || 0) < 1500 || window._isUserDragging) {
+                return;
+            }
             if (map && nlat && nlng) {
                 map.setView([nlat, nlng], nzoom || map.getZoom());
+                if (doorstepMarker) {
+                    doorstepMarker.setLatLng([nlat, nlng]);
+                }
             }
-            if (!isInteractiveMode) {
-                renderOverlays(pLat, pLng, pName, rLat, rLng, rName, centerLat, centerLng);
+        };
+
+        window.recenter = function(lat, lng, zoom) {
+            window._lastUserMoveTime = 0;
+            window._isUserDragging = false;
+            centerLat = lat || centerLat;
+            centerLng = lng || centerLng;
+            if (map) {
+                map.setView([centerLat, centerLng], zoom || 16);
+                if (doorstepMarker) {
+                    doorstepMarker.setLatLng([centerLat, centerLng]);
+                }
+            }
+        };
+
+        window.updateRider = function(rlat, rlng) {
+            if (riderMarker && rlat && rlng) {
+                riderMarker.setLatLng([rlat, rlng]);
             }
         };
 
@@ -249,13 +358,28 @@
             if (map) map.zoomOut();
         };
 
-        window.recenter = function(lat, lng, zoom) {
-            centerLat = lat || centerLat;
-            centerLng = lng || centerLng;
-            if (map) {
-                map.setView([centerLat, centerLng], zoom || 16);
+        // Automatic URL query parameter parsing on load
+        (function() {
+            try {
+                var params = new URLSearchParams(window.location.search);
+                var lat = parseFloat(params.get('lat')) || 22.5855;
+                var lng = parseFloat(params.get('lng')) || 88.4144;
+                var zoom = parseInt(params.get('zoom')) || 16;
+                var mode = params.get('mode') || 'streets';
+                var interactive = params.get('interactive') !== 'false';
+                var showCenterPin = params.get('showCenterPin') === 'true';
+                var podLat = params.has('podLat') ? parseFloat(params.get('podLat')) : null;
+                var podLng = params.has('podLng') ? parseFloat(params.get('podLng')) : null;
+                var podName = params.get('podName') || 'Darkstore Pod';
+                var riderLat = params.has('riderLat') ? parseFloat(params.get('riderLat')) : null;
+                var riderLng = params.has('riderLng') ? parseFloat(params.get('riderLng')) : null;
+                var riderName = params.get('riderName') || 'Delivery Partner';
+
+                initMap(lat, lng, zoom, podLat, podLng, podName, riderLat, riderLng, riderName, mode, interactive, showCenterPin);
+            } catch(e) {
+                console.error("AutoInit error: " + e);
             }
-        };
+        })();
     </script>
 </body>
 </html>
