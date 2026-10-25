@@ -382,18 +382,7 @@ fun OmniUniversalMapView(
                                 }, "AndroidBridge")
                             }
 
-                            val encodedPodName = java.net.URLEncoder.encode(podName ?: "Darkstore Pod", "UTF-8")
-                            val encodedRiderName = java.net.URLEncoder.encode(riderName ?: "Delivery Partner", "UTF-8")
-                            val modeParam = if (displayMode == OmniMapDisplayMode.SATELLITE) "satellite" else "streets"
-                            val mapUrl = "file:///android_asset/map/map.html?lat=$latitude&lng=$longitude&zoom=$zoom&mode=$modeParam&interactive=$interactive&showCenterPin=$showCenterPin" +
-                                (if (podLat != null && podLng != null) "&podLat=$podLat&podLng=$podLng&podName=$encodedPodName" else "") +
-                                (if (riderLat != null && riderLng != null) "&riderLat=$riderLat&riderLng=$riderLng&riderName=$encodedRiderName" else "")
-
-                            try {
-                                loadUrl(mapUrl)
-                            } catch (_: Exception) {
-                                loadDataWithBaseURL("file:///android_asset/map/", mapHtml, "text/html", "UTF-8", null)
-                            }
+                            loadDataWithBaseURL("https://cart.local/map/", mapHtml, "text/html", "UTF-8", null)
                             webViewRef = this
                         }
                     },
@@ -977,6 +966,24 @@ private fun generateLeafletHtml(
 
                     setTileLayer('${if (isSatellite) "satellite" else "streets"}');
 
+                    ${if (podLat != null && podLng != null) """
+                    var podIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div class='hub-pin'>⚡ $podName</div>",
+                        iconSize: [0, 0]
+                    });
+                    podMarker = L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
+                    """ else ""}
+
+                    ${if (riderLat != null && riderLng != null) """
+                    var riderIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div class='rider-pin'>🛵 $riderName</div>",
+                        iconSize: [0, 0]
+                    });
+                    riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
+                    """ else ""}
+
                     ${if (isInteractive) """
                     map.on('movestart', function() {
                         window._isUserDragging = true;
@@ -1006,24 +1013,6 @@ private fun generateLeafletHtml(
                         }
                     });
                     """ else """
-                    ${if (podLat != null && podLng != null) """
-                    var podIcon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: "<div class='hub-pin'>⚡ $podName</div>",
-                        iconSize: [0, 0]
-                    });
-                    podMarker = L.marker([$podLat, $podLng], { icon: podIcon }).addTo(map);
-                    """ else ""}
-
-                    ${if (riderLat != null && riderLng != null) """
-                    var riderIcon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: "<div class='rider-pin'>🛵 $riderName</div>",
-                        iconSize: [0, 0]
-                    });
-                    riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIcon }).addTo(map);
-                    """ else ""}
-
                     var doorstepIcon = L.divIcon({
                         className: 'custom-div-icon',
                         html: "<div class='doorstep-pin'>📍 Delivery Doorstep</div>",

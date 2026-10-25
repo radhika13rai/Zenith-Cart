@@ -227,7 +227,7 @@ fun LocationPickerScreen(
     onNavigateBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var currentStep by remember { mutableStateOf(LocationPickerStep.INITIAL_PROMPT) }
+    var currentStep by remember { mutableStateOf(LocationPickerStep.MAP_CONFIRMATION) }
     val savedAddresses by viewModel.userAddresses.collectAsState()
     val activeAddress by viewModel.selectedAddress.collectAsState()
 
@@ -395,7 +395,11 @@ fun LocationPickerScreen(
                         }
                     },
                     onBackClick = {
-                        currentStep = LocationPickerStep.INITIAL_PROMPT
+                        if (onNavigateBack != null) {
+                            onNavigateBack()
+                        } else {
+                            currentStep = LocationPickerStep.INITIAL_PROMPT
+                        }
                     }
                 )
             }
